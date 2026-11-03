@@ -2,6 +2,7 @@
   "name": "bulletin-local-meteo-france",
   "version": "0.0.6",
   "private": true,
+  "license": "GPL-3.0-only",
   "type": "module",
   "description": "Bulletin météo local à partir des API de données ouvertes de Météo-France.",
   "engines": {

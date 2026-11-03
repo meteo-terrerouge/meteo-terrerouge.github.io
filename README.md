@@ -26,3 +26,13 @@ GitHub Actions récupère les données météo et publie le site.
 6. Lancer le workflow **Préparer les données météo** avec `group: all` et `publish: true`.
 
 Une fois le workflow terminé, le site est accessible à **`https://<compte>.github.io/`**. Les données météo sont ensuite actualisées automatiquement.
+
+## Licence
+
+Copyright (C) 2026 nicklausFR.
+
+Le code source de ce projet est distribué sous la licence **GNU General Public License version 3 uniquement (GPL-3.0-only)**. Vous pouvez le redistribuer et le modifier selon les termes du fichier [LICENSE](LICENSE).
+
+Ce programme est distribué sans aucune garantie, dans les limites prévues par cette licence.
+
+Les composants tiers conservent leurs licences respectives, notamment celles indiquées dans `THIRD_PARTY` et `public/vendor`. Les données et services météo restent soumis aux conditions de leurs fournisseurs.
