@@ -13,3 +13,5 @@
 04/11/2026 18:55 — v0.029 — Le premier jour Tendance commence sur une nouvelle ligne de cartes.
 
 04/11/2026 19:03 — v0.030 — La frise 3 h suit le thème de la page : claire sans Dark Reader, sombre avec l’extension, sans fond sombre imposé par le thème système.
+
+04/11/2026 19:18 — v0.031 — Dans le résumé de la frise 3 h, une goutte barrée remplace le texte « Pas de pluie » ; la limite horaire reste affichée si la couverture est incomplète.

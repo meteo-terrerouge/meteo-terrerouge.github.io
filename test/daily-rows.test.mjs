@@ -1218,9 +1218,12 @@ test('frise compacte : un cumul sec connu, un cumul partiel et une absence PIAF 
   const options = { now, compact: true };
   const step = (duration, precipitation) => ({ rainSteps: [{ intervalStart: now, intervalEnd: now + duration, precipitation }] });
   const dry = piafChartMarkup(step(3 * HOUR, 0), options);
-  assert.match(dry, /<b>Pas de pluie<\/b>/);
+  assert.match(dry, /role="img" aria-label="Pas de pluie"/);
+  assert.match(dry, /class="piaf-dry-rain-slash"/);
+  assert.ok(!dry.includes('<b>Pas de pluie'));
   assert.ok(!dry.includes('piaf-daylight'));
-  assert.match(piafChartMarkup(step(HOUR, 0), options), /<b>Pas de pluie \(jusqu’à 1 h\)<\/b>/);
+  assert.match(piafChartMarkup(step(HOUR, 0), options), /aria-label="Pas de pluie \(jusqu’à 1 h\)"/);
+  assert.match(piafChartMarkup(step(HOUR, 0), options), /<b>\(jusqu’à 1 h\)<\/b>/);
   assert.match(piafChartMarkup(step(HOUR, 0), options), /couverture partielle/);
   assert.ok(!dry.includes('piaf-intensity-line'));
   const partial = piafChartMarkup(step(HOUR, .25), options);
@@ -1228,6 +1231,7 @@ test('frise compacte : un cumul sec connu, un cumul partiel et une absence PIAF 
   const missing = piafChartMarkup(null, options);
   assert.match(missing, /<small>Cumul<\/small><b>— mm<\/b>/);
   assert.ok(missing.includes('PIAF indisponibles'));
+  assert.ok(!missing.includes('piaf-dry-rain-slash'));
   assert.ok(!missing.includes('piaf-intensity-line'));
   assert.ok(!missing.includes('piaf-temperature-line'));
 });

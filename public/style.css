@@ -1379,6 +1379,7 @@ body.forecast-rows-layout { min-width: 0; }
 /* Compact local 3-hour preview: temperature summary, precipitation timeline. */
 .piaf-three-hour-summary { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 8px 12px; border-bottom: 1px solid #edf2f4; }
 .piaf-three-hour-summary > span { display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
+.piaf-three-hour-summary > .piaf-summary-dry { align-items: center; }
 .piaf-three-hour-summary small { color: #617885; font-size: 10px; font-weight: 750; }
 .piaf-three-hour-summary b { font-size: 15px; }
 .piaf-summary-temperature { color: #d65a2a; }
