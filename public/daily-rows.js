@@ -47,6 +47,18 @@ function precipitationSummary(samples) {
     phaseDescription: phases.length > 1 ? 'Précipitations de natures différentes selon les créneaux ; pictogramme du créneau le plus intense' : null };
 }
 
+// Use the end of acquired intervals, including dry intervals, never the
+// requested horizon. Missing coverage stays unknown.
+export function precipitationCoverageSuffix(intervals, timezone = 'Europe/Paris') {
+  const ends = intervals.map(interval => interval.end).filter(valid);
+  if (!ends.length) return '';
+  const parts = new Intl.DateTimeFormat('fr-FR', { timeZone: timezone, hour: 'numeric', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(Math.max(...ends));
+  const hour = parts.find(part => part.type === 'hour').value;
+  const minute = parts.find(part => part.type === 'minute').value;
+  return ' (jusqu’à ' + hour + ' h' + (minute === '00' ? '' : ' ' + minute) + ')';
+}
+
 export function localDateKey(time, timezone = 'Europe/Paris') {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(time);
 }
@@ -90,12 +102,18 @@ export function weatherPictogram(sample, iconMarkup) {
   const phaseLabel = phase === 'mixed' ? 'Pluie et neige sur ce créneau ; simultanéité non précisée'
     : phase === 'snow-unknown' ? 'Neige ; quantité de pluie inconnue' : snow ? 'Neige' : freezing ? 'Pluie verglaçante' : '';
   const cloudCover = valid(sample.cloudCover) ? sample.cloudCover : storm || snow || freezing ? 100 : null;
+  const liquid = phase === 'mixed' ? sample.liquidRain : sample.rain;
+  const rainLevel = !snow || phase === 'mixed' ? Math.max(0, Math.min(5, sample.rainLevel ??
+    (valid(liquid) && liquid >= .01 ? liquid < 3 ? 1 : liquid < 8 ? 2 : liquid < 15 ? 3 : liquid < 30 ? 4 : 5 : 0))) : 0;
   const image = valid(cloudCover) ? iconMarkup({ ...sample, cloudCover: snow || freezing ? Math.max(35, cloudCover) : cloudCover,
-    ...(snow || freezing || phase === 'unknown' ? { rain: 0, rainLevel: 0 } : {}) }) : '<span class="day-icon-missing">—</span>';
+    ...(snow || freezing || phase === 'unknown' ? { rain: 0, rainLevel: 0 } : { rainLevel }) }) : '<span class="day-icon-missing">—</span>';
   const snowLevel = sample.snowfall >= 1 ? 3 : sample.snowfall >= .2 ? 2 : 1;
-  const phaseImage = snow || freezing ? `<span class="day-phase-icon" role="img" aria-label="${phaseLabel}">${freezing ? '' : image}<img class="day-snow-layer" src="pictogrammes/${freezing ? 'pluie-verglacante' : phase === 'mixed' ? 'calque-pluie-neige' : 'calque-neige-' + snowLevel}.svg" alt="" loading="lazy" decoding="async"></span>` : image;
+  // Each component of mixed precipitation keeps its own quantity and scale.
+  // Reuse the existing vector layers, side by side under the same cloud.
+  const mixedLayer = phase === 'mixed' ? `<svg class="day-snow-layer day-mixed-layer" viewBox="0 0 128 128" aria-hidden="true">${rainLevel ? `<image href="vendor/weather-variants/rain-${rainLevel}.svg" x="-13" y="26" width="96" height="96"/>` : ''}<image href="pictogrammes/calque-neige-${snowLevel}.svg" x="40" y="26" width="96" height="96"/></svg>` : '';
+  const phaseImage = snow || freezing ? `<span class="day-phase-icon" role="img" aria-label="${phaseLabel}">${freezing ? '' : image}${mixedLayer || `<img class="day-snow-layer" src="pictogrammes/${freezing ? 'pluie-verglacante' : 'calque-neige-' + snowLevel}.svg" alt="" loading="lazy" decoding="async">`}</span>` : image;
   const lightning = storm ? '<img class="day-weather-storm" src="pictogrammes/calque-orage.svg" alt="" loading="lazy" decoding="async">' : '';
-  return `<span class="weather-icon" data-precipitation-phase="${escape(phase || 'unknown')}"${sample.phaseDescription ? ` title="${escape(sample.phaseDescription)}"` : ''}${storm ? ' role="img" aria-label="Orage possible"' : ''}>${phaseImage}${lightning}</span>`;
+  return `<span class="weather-icon" data-precipitation-phase="${escape(phase || 'unknown')}" data-rain-level="${['rain', 'mixed'].includes(phase) ? rainLevel : 0}" data-snow-level="${snow ? snowLevel : 0}"${sample.phaseDescription ? ` title="${escape(sample.phaseDescription)}"` : ''}${storm ? ' role="img" aria-label="Orage possible"' : ''}>${phaseImage}${lightning}</span>`;
 }
 
 // Only interpolate continuous fields between acquired points. A gap larger
@@ -729,12 +747,12 @@ export function dailyRowsMarkup(days, { now = Date.now(), timezone = 'Europe/Par
     const rainPartial = rains.reduce((sum, interval) => sum + interval.end - interval.start, 0) < day.end - day.start - 1;
     const rainEstimated = rains.some(interval => interval.rain > 0 && interval.estimated);
     const label = day.date === today ? 'Aujourd’hui' : collapsible && Date.parse(day.date) - Date.parse(today) === 24 * HOUR ? 'Demain' : weekday.format(day.start);
-    const rainSummary = valid(rainTotal) && !rainVisible(rainTotal) ? '' : `<span class="daily-period-rain-volume" title="${separated ? 'Cumul de pluie liquide' : 'Précipitations totales en équivalent eau ; répartition pluie/neige inconnue'} de la journée${rainEstimated ? ' ; * partiellement estimé au prorata des intervalles source' : ''}">${separated ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/></svg>' : '<small>Précip.</small>'}<strong>${rainNumber(rainTotal)} mm${rainEstimated ? '*' : ''}${rainPartial ? ' (partiel)' : ''}</strong></span>`;
+    const rainSummary = valid(rainTotal) && !rainVisible(rainTotal) ? '' : `<span class="daily-period-rain-volume" title="${separated ? 'Cumul de pluie liquide' : 'Précipitations totales en équivalent eau ; répartition pluie/neige inconnue'} de la journée${rainEstimated ? ' ; * partiellement estimé au prorata des intervalles source' : ''}">${separated ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/></svg>' : '<small>Précip.</small>'}<strong>${rainTrace(rainTotal) ? 'gouttes' : rainNumber(rainTotal) + ' mm'}${rainEstimated ? '*' : ''}${rainPartial ? precipitationCoverageSuffix(rains, timezone) : ''}</strong></span>`;
     const snowIntervals = rains.filter(interval => valid(interval.snowfall));
     const snowTotal = snowIntervals.reduce((sum, interval) => sum + displayedSnowfall(interval), 0);
     const snowPartial = snowIntervals.reduce((sum, interval) => sum + interval.end - interval.start, 0) < day.end - day.start - 1;
     const snowEstimated = snowIntervals.some(interval => interval.snowfall > 0 && interval.estimated);
-    const snowSummary = snowTotal > 0 ? `<span class="day-snow-volume" title="Neige fraîche estimée de la journée ; pas une hauteur au sol${snowPartial ? ' ; couverture partielle' : ''}${snowEstimated ? ' ; * part estimée au prorata' : ''}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M3.34 7l17.32 10M3.34 17 20.66 7M9 4l3 3 3-3M9 20l3-3 3 3M3.5 10.5l4.1-1.1-1.1-4.1M17.5 18.7l-1.1-4.1 4.1-1.1M6.5 18.7l1.1-4.1-4.1-1.1M20.5 10.5l-4.1-1.1 1.1-4.1"/></svg><strong>${escape(snowLabel(snowTotal))}${snowEstimated ? '*' : ''}${snowPartial ? ' (partiel)' : ''}</strong></span>` : '';
+    const snowSummary = snowTotal > 0 ? `<span class="day-snow-volume" title="Neige fraîche estimée de la journée ; pas une hauteur au sol${snowPartial ? ' ; couverture partielle' : ''}${snowEstimated ? ' ; * part estimée au prorata' : ''}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M3.34 7l17.32 10M3.34 17 20.66 7M9 4l3 3 3-3M9 20l3-3 3 3M3.5 10.5l4.1-1.1-1.1-4.1M17.5 18.7l-1.1-4.1 4.1-1.1M6.5 18.7l1.1-4.1-4.1-1.1M20.5 10.5l-4.1-1.1 1.1-4.1"/></svg><strong>${escape(snowLabel(snowTotal))}${snowEstimated ? '*' : ''}${snowPartial ? precipitationCoverageSuffix(snowIntervals, timezone) : ''}</strong></span>` : '';
     const summary = `<div class="day-summary"><span class="daily-period-temperatures"><span><small>Min.</small><b>${number(temps[0])}°</b></span><span><small>Max.</small><strong>${number(temps[1])}°</strong></span></span>${rainSummary}${snowSummary}</div>`;
     const dateMarkup = `<time datetime="${day.date}">${escape(shortDate.format(day.start))}</time>`;
     const graphButton = `<button type="button" class="day-chart-toggle" aria-controls="day-chart-${day.date}" aria-expanded="${Boolean(state.chartOpen)}" aria-label="Afficher ou masquer la courbe du ${escape(label.toLowerCase() + ' ' + shortDate.format(day.start))}" title="Afficher ou masquer la courbe">${chartIconMarkup}</button>`;
@@ -745,11 +763,23 @@ export function dailyRowsMarkup(days, { now = Date.now(), timezone = 'Europe/Par
     const widthControl = `<label class="day-width-control" hidden title="Une heure par créneau en journée, nuit comprimée"><input type="checkbox"${state.showHourly ? ' checked' : ''} aria-label="Afficher le détail heure par heure du ${day.date}">Afficher le détail heure par heure</label>`;
     const chart = `<div class="day-combined-body">${controlsMarkup(state.opacities)}<div class="day-chart-scroll" role="region" tabindex="0" aria-label="Frise du ${day.date}"><div class="day-chart-content">${collapsible ? '' : renderChart(day, state)}</div></div></div>`;
     if (collapsible) {
-      return `<div class="bulletin-day forecast-day-periods" data-day-date="${day.date}"><article style="order:${index * 2}" class="daily-forecast-card${day.trend ? ' forecast-day-trend' : ''}" aria-label="${escape(label + ' ' + shortDate.format(day.start))}"><header>${dateHeading}${headingTools}</header><div class="daily-period-grid">${periodsMarkup(day, state)}</div></article><section class="forecast-day-row day-chart-panel bulletin-chart-panel" id="day-chart-${day.date}" style="order:${index * 2 - 1}" aria-label="Courbe du ${escape(shortDate.format(day.start))}"${state.chartOpen ? '' : ' hidden'}><header class="forecast-day-header"><h3>${escape(label)} <time datetime="${day.date}">${escape(shortDate.format(day.start))}</time></h3><button type="button" class="day-chart-close" aria-label="Fermer la courbe du ${escape(shortDate.format(day.start))}">×</button></header><div class="day-chart-options">${widthControl}</div>${chart}</section></div>`;
+      return `<div class="bulletin-day forecast-day-periods" data-day-date="${day.date}"><article style="order:${index * 2}" class="daily-forecast-card${day.trend ? ' forecast-day-trend' : ''}${day.trend && !days[index - 1]?.trend ? ' forecast-trend-start' : ''}" aria-label="${escape(label + ' ' + shortDate.format(day.start))}"><header>${dateHeading}${headingTools}</header><div class="daily-period-grid">${periodsMarkup(day, state)}</div></article><section class="forecast-day-row day-chart-panel bulletin-chart-panel" id="day-chart-${day.date}" style="order:${index * 2 - 1}" aria-label="Courbe du ${escape(shortDate.format(day.start))}"${state.chartOpen ? '' : ' hidden'}><header class="forecast-day-header"><h3>${escape(label)} <time datetime="${day.date}">${escape(shortDate.format(day.start))}</time></h3><button type="button" class="day-chart-close" aria-label="Fermer la courbe du ${escape(shortDate.format(day.start))}">×</button></header><div class="day-chart-options">${widthControl}</div>${chart}</section></div>`;
     }
     return `<article class="forecast-day-row${day.trend ? ' forecast-day-trend' : ''}" data-day-date="${day.date}" aria-label="${escape(label + ' ' + shortDate.format(day.start))}"><header class="forecast-day-header">${dateHeading}${icon}${summary}${widthControl}</header>${chart}</article>`;
   }).join('');
   return `<section class="${collapsible ? 'daily-cards-view bulletin-cards-view' : 'forecast-daily-rows'}" aria-label="Prévisions quotidiennes sur ${days.length} jours"><div class="${collapsible ? 'daily-cards-grid bulletin-cards-grid' : 'daily-rows-list'}">${rows}</div></section>`;
+}
+
+// PIAF supplies an amount in water equivalent, not a precipitation type.
+// When a model predicts a dry interval with explicitly known zero snow and
+// liquid components, PIAF's positive amount is estimated as liquid. Never
+// derive snow from temperature or replace absent phase components with zero.
+function piafPrecipitationPhase(interval, amount) {
+  if (amount === 0) return 'dry';
+  if (!(amount > 0)) return 'unknown';
+  const phase = interval?.phase === 'snow-unknown' ? 'snow' : interval?.phase;
+  if (['rain', 'snow', 'mixed', 'freezing'].includes(phase)) return phase;
+  return interval?.snowfall === 0 && valid(interval.liquidRain) ? 'rain' : 'unknown';
 }
 
 export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compact = false, showSnowFlakes = false, timezone = 'Europe/Paris', dashboard = {}, week = {}, iconMarkup = () => '', backgroundForTime = () => '#f7fafc', updateMarkup = () => '', chartIconMarkup = '', hazardsMarkup = () => '' } = {}) {
@@ -770,9 +800,10 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
       return boundaries.slice(0, -1).map((start, index) => {
         const stop = boundaries[index + 1];
         const interval = precipitationIntervals.find(item => item.start <= start && item.end >= stop);
-        const phase = interval?.phase === 'snow-unknown' ? 'snow' : interval?.phase;
+        const phase = piafPrecipitationPhase(interval, sample.amount);
         return { ...sample, start, end: stop, amount: sample.amount * (stop - start) / (sample.end - sample.start),
-          phase: ['rain', 'snow', 'mixed', 'freezing'].includes(phase) ? phase : 'unknown', phaseSource: interval?.source };
+          phase, phaseSource: interval?.source,
+          phaseEstimate: phase === 'rain' && interval?.phase === 'dry' ? 'PIAF positif ; pluie estimée avec le modèle sans neige prévue' : '' };
       });
     }).sort((a, b) => a.start - b.start);
   // Classify a whole wet episode, not each five-minute amount in isolation.
@@ -798,7 +829,7 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
   const showSnowScale = compact && snowIntervals.some(interval => interval.rain > 0);
   const snowOnly = showSnowScale && samples.filter(sample => sample.amount > 0).every(sample => sample.phase === 'snow');
   width = Math.max(200, Math.round(width));
-  const height = compact ? (width < 480 ? 210 : 160) : 260, left = compact ? (showSnowScale && !snowOnly ? 88 : 46) : CHART_INSET, right = width - CHART_INSET, top = compact ? 86 : 104, bottom = height;
+  const height = compact ? (width < 480 ? 218 : 168) : 260, left = compact ? (showSnowScale && !snowOnly ? 88 : 46) : CHART_INSET, right = width - CHART_INSET, top = compact ? 94 : 104, bottom = height;
   const maxRate = Math.max(10, ...samples.filter(sample => !sample.trace && !sample.insignificant).map(sample => sample.rate));
   const x = time => left + (time - now) / (end - now) * (right - left);
   const displayStep = compact ? [5, 15, 30].find(minutes => (right - left) / (180 / minutes) >= 10) || 30 : 5;
@@ -854,9 +885,12 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
       sample.phaseDescription = 'Précipitations PIAF indisponibles à cette heure ; ce pictogramme ne signifie pas un temps sec';
     } else if (phaseInterval) {
       const dry = sample.rain === 0;
-      Object.assign(sample, { phase: dry ? 'dry' : phaseInterval.phase,
+      Object.assign(sample, { phase: piafPrecipitationPhase(phaseInterval, sample.rain),
         snowfall: dry ? 0 : valid(phaseInterval.snowfall) ? phaseInterval.snowfall * HOUR / (phaseInterval.end - phaseInterval.start) : null,
         liquidRain: dry ? 0 : phaseInterval.liquidRain });
+      if (!dry && phaseInterval.phase === 'dry' && sample.phase === 'rain') {
+        sample.phaseDescription = 'Pluie estimée : PIAF annonce des précipitations, ' + phaseInterval.source + ' ne prévoit pas de neige ; PIAF ne fournit pas la nature';
+      }
       if (phaseInterval.phase && !dry) sample.sources.phase = phaseInterval.source;
     }
     return sample;
@@ -890,9 +924,10 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
     if (sample.trace || sample.insignificant || sample.amount <= 0) finish();
     else segment.push([x(sample.start), y(sample.rate)], [x(sample.end), y(sample.rate)]);
     previousEnd = sample.end;
-    const phaseNames = { rain: 'Pluie', snow: 'Neige', mixed: 'Pluie et neige', freezing: 'Précipitations verglaçantes', unknown: 'Nature indéterminée' };
+    const phaseNames = { rain: 'Pluie', snow: 'Neige', mixed: 'Pluie et neige', freezing: 'Précipitations verglaçantes', dry: 'Pas de précipitations', unknown: 'Nature indéterminée (données de phase absentes)' };
     const detail = format.format(sample.start) + ' – ' + format.format(sample.end)
       + (compact ? '\n' + phaseNames[sample.phase] + (sample.phaseSource ? ' · phase estimée par ' + sample.phaseSource : '') : '')
+      + (sample.phaseEstimate ? '\n' + sample.phaseEstimate : '')
       + (sample.trace ? '\nPIAF : gouttes ; repère fixe hors échelle d’intensité' : '\nPIAF')
       + '\nIntensité' + (compact && displayStep > 5 ? ' moyenne' : '') + ' : ' + rainDetailNumber(sample.rate) + ' mm/h\nCumul sur ce créneau : ' + rainDetailNumber(sample.amount) + ' mm';
     return `<g class="chart-point" tabindex="0" data-tooltip="${escape(detail)}" aria-label="${escape(detail)}"><rect x="${x(sample.start)}" y="${top}" width="${Math.max(1, x(sample.end) - x(sample.start))}" height="${bottom - top}" fill="transparent"/></g>`;
@@ -1008,8 +1043,8 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
       if (rank(sample) > rank(representative) || rank(sample) === rank(representative) && (sample.rain || 0) > (representative.rain || 0)) representative = sample;
     }
     const range = format.format(start) + ' – ' + format.format(stop);
-    const slotWidth = Math.min(69, (right - left) / (180 / step));
-    return `<div class="day-timeline-slot piaf-weather-slot" style="left:${x(center) / width * 100}%;width:${slotWidth}px;--piaf-weather-size:${Math.min(56, slotWidth - 4)}px;--piaf-weather-time-size:${Math.min(11, slotWidth / 3.4)}px" data-slot-start="${start}" data-slot-end="${stop}" title="${range} : phénomènes prévus pendant ce créneau"><time datetime="${new Date(center).toISOString()}">${format.format(center)}</time>${weatherPictogram(representative, iconMarkup)}</div>`;
+    const slotWidth = Math.min(77, (right - left) / (180 / step));
+    return `<div class="day-timeline-slot piaf-weather-slot" style="left:${x(center) / width * 100}%;width:${slotWidth}px;--piaf-weather-size:${Math.min(72, slotWidth - 4)}px;--piaf-weather-time-size:${Math.min(11, slotWidth / 3.4)}px" data-slot-start="${start}" data-slot-end="${stop}" title="${range} : phénomènes prévus pendant ce créneau"><time datetime="${new Date(center).toISOString()}">${format.format(center)}</time>${weatherPictogram(representative, iconMarkup)}</div>`;
   }).join('') : times.map(time => `<div class="day-timeline-slot" style="left:${x(time) / width * 100}%"><time datetime="${new Date(time).toISOString()}">${format.format(time)}</time>${weatherPictogram(weatherAt(time), iconMarkup)}</div>`).join('');
   const axis = [0, maxRate / 2, maxRate].map(rate => `<text x="${left - 6}" y="${Math.min(height - 4, y(rate) + 4)}" text-anchor="end">${number(rate)}</text>`).join('');
   // Colour and height share a linear intensity scale, independently of cumulative rainfall.
@@ -1021,7 +1056,7 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
   };
   const scaleMarkup = (unit, maximum, barX, textX, unitX, title) => `<g class="piaf-vertical-scale${unit === 'cm/h' ? ' piaf-snow-scale' : ''}" role="img" aria-label="${escape(title)}"><title>${escape(title)}</title><text class="piaf-scale-name" x="${unitX}" y="${y(maxRate) - 27}" text-anchor="middle">${unit === 'cm/h' ? 'Neige' : 'Pluie'}</text><text class="piaf-rain-unit" x="${unitX}" y="${y(maxRate) - 10}" text-anchor="middle">${unit}</text>${unit === 'cm/h' ? snowScaleBar(barX) : `<rect x="${barX}" y="${y(maxRate)}" width="8" height="${bottom - y(maxRate)}" rx="2" fill="url(#piaf-rain-intensity)"/>`}${[0, maximum / 2, maximum].map(rate => `<text x="${textX}" y="${Math.min(height - 4, bottom - rate / maximum * (bottom - top - 5) + 4)}" text-anchor="end">${number(rate)}</text>`).join('')}</g>`;
   const snowScaleTitle = 'Neige fraîche estimée par les modèles : 0 à ' + number(maxSnowRate) + ' cm/h ; échelle indépendante de PIAF';
-  const verticalLegend = compact && (samples.length || showSnowScale) ? snowOnly
+  const verticalLegend = compact && (samples.some(sample => sample.amount > 0) || showSnowScale) ? snowOnly
     ? scaleMarkup('cm/h', maxSnowRate, 23, 18, 22, snowScaleTitle)
     : scaleMarkup('mm/h', maxRate, 23, 18, 22, 'Précipitations PIAF : 0 à ' + number(maxRate) + ' mm/h, équivalent eau')
       + (showSnowScale ? scaleMarkup('cm/h', maxSnowRate, 65, 60, 64, snowScaleTitle) : '') : '';
@@ -1032,29 +1067,20 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
   const snowPartial = snowIntervals.reduce((sum, interval) => sum + interval.end - interval.start, 0) < end - now - 1;
   const rainStatus = (onlyTraces && rainTrace(total) ? '<span class="piaf-chart-total">gouttes</span>'
     : rainVisible(total) ? `<span class="piaf-chart-total">${rainNumber(total)} mm</span>` : '')
-    + (snowTotal > 0 ? `<span class="piaf-chart-total" title="Neige fraîche estimée par ${escape(snowSources.join(' · '))}, distincte du cumul PIAF en équivalent eau ; pas une hauteur au sol${snowIntervals.some(interval => interval.estimated) ? ' ; créneaux coupés estimés au prorata' : ''}">Neige ${escape(snowSources.join(' · '))} ${escape(snowLabel(snowTotal))}${snowPartial ? ' (partiel)' : ''}</span>` : '');
+    + (snowTotal > 0 ? `<span class="piaf-chart-total" title="Neige fraîche estimée par ${escape(snowSources.join(' · '))}, distincte du cumul PIAF en équivalent eau ; pas une hauteur au sol${snowIntervals.some(interval => interval.estimated) ? ' ; créneaux coupés estimés au prorata' : ''}">Neige ${escape(snowSources.join(' · '))} ${escape(snowLabel(snowTotal))}${snowPartial ? precipitationCoverageSuffix(snowIntervals, timezone) : ''}</span>` : '');
   const temperatureSamples = [...weather, ...sources.flatMap(hours => hours.filter(hour => hour.stamp >= now && hour.stamp <= end).map(hour => weatherAt(hour.stamp)))];
   const temperatures = extent(temperatureSamples, 'temperature', [null, null]);
   const temperaturePartial = weather.some(sample => !valid(sample.temperature));
   const covered = samples.reduce((sum, sample) => sum + sample.end - sample.start, 0);
   const partial = covered < end - now - 1;
-  const clock = time => format.format(time).replace(':', 'h').replace(/h00$/, 'h').replace(/^0(?=\d)/, '');
-  const until = samples.length ? Math.max(...samples.map(sample => sample.end)) : null;
-  const coverageSuffix = samples.length && partial ? ' (jusqu’à ' + clock(until) + ')' : '';
-  const gaps = [];
-  let coveredUntil = now;
-  for (const sample of samples) {
-    if (sample.start > coveredUntil + 1) gaps.push([coveredUntil, sample.start]);
-    coveredUntil = Math.max(coveredUntil, sample.end);
-  }
-  if (coveredUntil < end - 1) gaps.push([coveredUntil, end]);
-  const coverageTitle = !samples.length ? 'Précipitations PIAF indisponibles sur les trois prochaines heures'
-    : 'Cumul PIAF en équivalent eau, de ' + clock(samples[0].start) + ' à ' + clock(until)
-      + (gaps.length ? ' ; sans données de ' + gaps.map(([start, stop]) => clock(start) + ' à ' + clock(stop)).join(', de ') : ' ; trois heures entièrement couvertes');
   const hazards = hazardsMarkup({ windSpeed: extent(temperatureSamples, 'windSpeed', [null, null])[1],
     windGust: extent(temperatureSamples, 'windGust', [null, null])[1], storm: temperatureSamples.some(sample => sample.stormSignal) });
-  const rainIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/></svg>';
-  const summary = compact ? `<div class="piaf-three-hour-summary"><span class="daily-period-temperatures"><span class="piaf-summary-max" title="Maximum prévu sur les trois prochaines heures${temperaturePartial ? ' ; données partielles' : ''}"><small>Max.</small><strong>${number(temperatures[1])}°</strong></span><span class="piaf-summary-min" title="Minimum prévu sur les trois prochaines heures${temperaturePartial ? ' ; données partielles' : ''}"><small>Min.</small><b>${number(temperatures[0])}°</b></span></span><span class="daily-period-rain-volume piaf-summary-precipitation" title="${escape(coverageTitle)}">${samples.length && total === 0 ? '' : rainIcon}<strong>${samples.length && total === 0 ? 'Pas de pluie' : (samples.length ? rainDetailNumber(total) : '—') + ' mm'}${coverageSuffix}</strong></span>${snowTotal > 0 ? `<span class="daily-period-rain-volume piaf-summary-snow" title="Neige fraîche estimée par ${escape(snowSources.join(' · '))} ; estimation distincte du cumul PIAF en équivalent eau ; pas une hauteur au sol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M3.34 7l17.32 10M3.34 17 20.66 7M9 4l3 3 3-3M9 20l3-3 3 3M3.5 10.5l4.1-1.1-1.1-4.1M17.5 18.7l-1.1-4.1 4.1-1.1M6.5 18.7l1.1-4.1-4.1-1.1M20.5 10.5l-4.1-1.1 1.1-4.1"/></svg><strong>${escape(snowLabel(snowTotal))}${snowPartial ? ' (jusqu’à ' + clock(Math.max(...snowIntervals.map(interval => interval.end))) + ')' : ''}</strong></span>` : ''}${hazards}</div>` : '';
+  const dry = samples.length > 0 && total === 0;
+  const coverageSuffix = samples.length && partial ? precipitationCoverageSuffix(samples, timezone) : '';
+  const dryRainIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/><path class="piaf-dry-rain-slash" d="M5 5 19 19" fill="none" stroke="#fff" stroke-width="4"/><path d="M5 5 19 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  const precipitationSummary = dry ? dryRainIcon + (coverageSuffix ? '<b>' + escape(coverageSuffix.trimStart()) + '</b>' : '')
+    : '<small>Cumul</small><b>' + (samples.length ? total > 0 && total < .1 - 1e-9 ? 'gouttes' : rainDetailNumber(total) + ' mm' : '— mm') + coverageSuffix + '</b>';
+  const summary = compact ? `<div class="piaf-three-hour-summary"><span class="piaf-summary-temperature piaf-summary-min" title="Minimum prévu sur les trois prochaines heures${temperaturePartial ? ' ; données partielles' : ''}"><small>Min.</small><b>${number(temperatures[0])}°</b></span><span class="piaf-summary-temperature piaf-summary-max" title="Maximum prévu sur les trois prochaines heures${temperaturePartial ? ' ; données partielles' : ''}"><small>Max.</small><b>${number(temperatures[1])}°</b></span><span class="piaf-summary-precipitation${dry ? ' daily-period-rain-volume piaf-summary-dry' : ''}" title="${dry ? 'Pas de pluie' + escape(coverageSuffix) + ' ; ' : ''}Cumul PIAF des trois prochaines heures en équivalent eau${partial ? ' ; couverture partielle' : ''}"${dry ? ` role="img" aria-label="Pas de pluie${escape(coverageSuffix)}"` : ''}>${precipitationSummary}</span>${snowTotal > 0 ? `<span class="piaf-summary-snow" title="Neige fraîche estimée par ${escape(snowSources.join(' · '))} ; estimation distincte du cumul PIAF en équivalent eau ; pas une hauteur au sol"><small>Neige</small><b>${escape(snowLabel(snowTotal))}${snowPartial ? precipitationCoverageSuffix(snowIntervals, timezone) : ''}</b></span>` : ''}${hazards}</div>` : '';
   const usedSources = [...new Set(weather.flatMap(sample => Object.values(sample.sources)))];
   for (const source of snowSources) if (!usedSources.includes(source)) usedSources.push(source);
   if (samples.length) usedSources.push('PIAF');
@@ -1062,9 +1088,9 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
   const sourceLine = sourceUpdatesMarkup(usedSources.map(name => ({ name, fetchedAt: metadata[name]?.fetchedAt })), timezone, now);
   const rainLegend = !samples.length ? 'Précip. PIAF indisponibles' : onlyTraces ? 'Précip. PIAF' : 'Précip. PIAF mm/h équiv. eau';
   const lightStops = weather.map(sample => `<stop offset="${(sample.stamp - now) / (end - now) * 100}%" stop-color="${escape(backgroundForTime(sample.stamp))}"/>`).join('');
-  const background = compact ? `<rect width="${width}" height="${height}" fill="#fff"/>` : `<defs><linearGradient id="piaf-daylight" gradientUnits="userSpaceOnUse" x1="${left}" x2="${right}" y1="0" y2="0">${lightStops}</linearGradient></defs><rect width="${width}" height="${height}" fill="url(#piaf-daylight)"/>`;
+  const background = compact ? '' : `<defs><linearGradient id="piaf-daylight" gradientUnits="userSpaceOnUse" x1="${left}" x2="${right}" y1="0" y2="0">${lightStops}</linearGradient></defs><rect width="${width}" height="${height}" fill="url(#piaf-daylight)"/>`;
   const updateSources = [...new Set([...usedSources, 'PIAF'])].map(name => ({ name, fetchedAt: metadata[name]?.fetchedAt }));
   const viewControls = compact ? `<div class="three-hour-view-controls"><button type="button" class="day-chart-toggle" aria-controls="piaf-three-hour-diagram" aria-expanded="true" aria-label="Afficher ou masquer le diagramme des trois prochaines heures" title="Afficher ou masquer le diagramme">${chartIconMarkup}</button>${updateMarkup({ sourceUpdates: updateSources })}</div>` : '';
-  const legend = compact ? (samples.length || showSnowScale ? '' : '<div class="day-chart-key">Précip. PIAF indisponibles</div>') : `<div class="day-chart-key"><span class="piaf-legend-temperature">Température °C</span><span class="piaf-legend-rain"${samples.length ? '' : ' aria-label="PIAF indisponible" aria-disabled="true" title="PIAF indisponible"'}>${rainLegend}</span>${rainStatus}<span class="day-key-spacer" aria-hidden="true"></span>${sourceLine}</div>`;
+    const legend = compact ? (samples.length || showSnowScale ? '' : '<div class="day-chart-key">Précip. PIAF indisponibles</div>') : `<div class="day-chart-key"><span class="piaf-legend-temperature">Température °C</span><span class="piaf-legend-rain"${samples.length ? '' : ' aria-label="PIAF indisponible" aria-disabled="true" title="PIAF indisponible"'}>${rainLegend}</span>${rainStatus}<span class="day-key-spacer" aria-hidden="true"></span>${sourceLine}</div>`;
   return `<section class="piaf-three-hour-view${compact ? ' piaf-precipitation-view' : ''}">${summary}${viewControls}${compact ? '<div class="piaf-diagram" id="piaf-three-hour-diagram">' : ''}${legend}<div class="day-combined-canvas piaf-timeline-canvas" style="height:${height}px"><svg class="piaf-intensity-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="group" aria-label="${compact ? `Frise des trois prochaines heures : précipitations PIAF${samples.length ? '' : ' indisponibles'} et pictogrammes` : 'Frise des trois prochaines heures : température, précipitations PIAF et pictogrammes'}">${background}${blueGradient}${ticks}${compact ? verticalLegend : hasQuantifiedRain ? axis : ''}${areas}${lines}${snowBars}${bars}${traces}${snowCaps}${snowFlakes.join('')}${points}${temperatureLine}${temperaturePoints}</svg><div class="day-timeline-header">${header}</div></div>${compact ? '</div>' : ''}</section>`;
 }

@@ -9,3 +9,11 @@
 24/10/2026 22:13 — v0.006 — Retrait du lien vers l’administration dans la page publique.
 
 26/10/2026 09:06 — v0.007 — Frise 3 h : pluie en dégradé de bleu, légende verticale en mm/h à la place de l’axe des ordonnées sans lignes horizontales ; résumé avec la présentation commune des journées, cumuls datés « jusqu’à », barres de pluie par créneau et un pictogramme par créneau régulier, représentant aussi les brefs épisodes de pluie ou d’orage sur petit écran ; neige sur fond blanc uniforme, barres blanches délimitées sur les côtés et à la base par un contour bleu fin, traits verticaux raccordés aux congères, sommet formé par la congère avec la même bordure bleue fine, flocons décoratifs désactivés et réactivables dans le code, barres au même espacement que la pluie et congères toujours irrégulières sur les paliers horizontaux, même étroits ; échelle adaptative en cm/h fondée uniquement sur la hauteur, libellés Pluie/Neige placés au-dessus des échelles, barre neige blanche avec congère au maximum de son échelle ; adaptation aux écrans étroits avec regroupement visuel des barres, cumuls conservés et trois créneaux météo minimum.
+
+04/11/2026 18:32 — v0.028 — Frise 3 h compatible avec le mode sombre ; traces de pluie libellées « gouttes » ; Tendances en synthèses quotidiennes sans phrases ni quatre périodes ; nombres de gouttes et flocons selon les quantités, y compris en pluie et neige mêlées. Couverture incomplète indiquée par « jusqu’à » et l’heure réelle de fin des données. Frise 3 h : correction de la nature estimée lorsque PIAF est humide et le modèle sec ; pluie en barres bleues et échelle mm/h, neige en barres blanches avec congères et échelle cm/h indépendante, comme dans l’aperçu local.
+
+04/11/2026 18:55 — v0.029 — Le premier jour Tendance commence sur une nouvelle ligne de cartes.
+
+04/11/2026 19:03 — v0.030 — La frise 3 h suit le thème de la page : claire sans Dark Reader, sombre avec l’extension, sans fond sombre imposé par le thème système.
+
+04/11/2026 19:18 — v0.031 — Dans le résumé de la frise 3 h, une goutte barrée remplace le texte « Pas de pluie » ; la limite horaire reste affichée si la couverture est incomplète.

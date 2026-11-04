@@ -25,7 +25,7 @@ const local = name => {
 const functions = ['escapeText', 'backgroundTrendArrow', 'rainProbabilitySummary', 'weekRainBelowDisplayThreshold',
   'conciseRainSummary', 'cloudCoverBand', 'cloudCoverPresentation', 'conciseSkySummary', 'conciseWindSummary',
   'forecastPeriodSummaryText', 'forecastPeriodText', 'forecastSourceAlertTone', 'forecastSlotAlertTone', 'shortTermGustLabel', 'stormSignalPictogram',
-  'weekWeightedValue', 'forecastPeriodAvailable', 'periodSourceDetails', 'forecastPeriodDetailsMarkup', 'forecastPeriodHighlights', 'dailyRowPeriodsMarkup'];
+  'weekWeightedValue', 'forecastPeriodAvailable', 'periodSourceDetails', 'forecastPeriodDetailsMarkup', 'forecastPeriodHighlights', 'dailyRowPeriodsMarkup', 'dailyRowDaySummaryMarkup'];
 const code = [constant('rainPictogramStep'), constant('meanWindIntensityLevel', true), constant('gustIntensityLevel', true),
   constant('forecastPeriodOrder'), constant('cloudCoverLabels'), constant('periodMetricIcons', true),
   constant('periodMetricPictogram', true), constant('periodMetricRow'), ...functions.map(fn),
@@ -33,8 +33,8 @@ const code = [constant('rainPictogramStep'), constant('meanWindIntensityLevel', 
 const HOUR = 3600000, now = Date.parse('2026-10-24T00:00:00Z');
 const slot = { key: 'morning', label: 'Matin', startHour: 2, endHour: 8, dayOffset: 0 };
 function engine(dashboard = {}) {
-  return runInNewContext(code + '\n({periodCard, dailyRowPeriodsMarkup, forecastPeriodDetailsMarkup, forecastPeriodHighlights, periodSourceDetails, forecastSlotAlertTone, rainProbabilitySummary})', {
-    dailyRowsTools, appNow: () => now, latestForecastData: dashboard, rainRiskDisplayThreshold: 20,
+  return runInNewContext(code + '\n({periodCard, dailyRowDaySummaryMarkup, dailyRowPeriodsMarkup, forecastPeriodDetailsMarkup, forecastPeriodHighlights, periodSourceDetails, forecastSlotAlertTone, rainProbabilitySummary})', {
+    dailyRowsTools, siteProfile: { timezone: 'Europe/Paris' }, appNow: () => now, latestForecastData: dashboard, rainRiskDisplayThreshold: 20,
     forecastDailySlots: [slot], forecastSlotTimeRange: () => ({ start: now, end: now + 6 * HOUR }),
     slotDateKey: date => date, forecastLocalDateTime: () => new Date(now + 6 * HOUR),
     forecastSlotMidpointDate: () => new Date(now + 3 * HOUR), displayIcon: () => '<img alt="météo"/>',
@@ -91,4 +91,62 @@ test('le survol commun conserve valeurs par source, probabilité et flèches san
   const detail = e.periodSourceDetails([{ name: 'AROME', rain: 1.4, trends: { rain: '↗' } },
     { name: 'Open-Meteo', rain: 2.9, probability: 92, trends: { rain: '↘' } }], 'rain');
   assert.equal(detail.join('\n'), 'AROME : 1,4 mm ↗\nOpen-Meteo : 2,9 mm · 92 % ↘');
+});
+
+test('le pictogramme des périodes suit le cumul affiché, sans dilution sur les six heures', () => {
+  for (const [total, level] of [[0, 0], [.03, 1], [1.2, 1], [6, 2], [12, 3], [18, 4], [36, 5]]) {
+    const dashboard = { arome: { hours: Array.from({ length: 7 }, (_, i) => ({
+      time: new Date(now + i * HOUR).toISOString(), temperature: 5, rain: total / 6,
+      liquidRain: total / 6, snowfall: 0, cloudCover: 100, windSpeed: 10, windGust: 20
+    })) } };
+    const day = dailyRowsTools.buildDailyRows({ dashboard, now })[0];
+    const html = engine(dashboard).dailyRowPeriodsMarkup(day, {}, [], true);
+    assert.match(html, new RegExp('data-rain-level="' + level + '"'), 'cumul ' + total + ' mm');
+  }
+});
+
+test('les traces portent le libellé gouttes sans unité, et 0,1 mm reste un cumul chiffré', () => {
+  for (const total of [.01, .03, .099, .1]) {
+    const dashboard = { arome: { hours: Array.from({ length: 7 }, (_, i) => ({
+      time: new Date(now + i * HOUR).toISOString(), temperature: 5, rain: total / 6,
+      liquidRain: total / 6, snowfall: 0, cloudCover: 100, windSpeed: 10, windGust: 20
+    })) } };
+    const day = dailyRowsTools.buildDailyRows({ dashboard, now })[0];
+    const html = engine(dashboard).dailyRowPeriodsMarkup(day, {}, [], true);
+    assert.ok(html.includes(total < .1 ? '<strong>gouttes</strong>' : '<strong>0,1 mm</strong>'));
+    assert.ok(!html.includes('gouttes mm'));
+  }
+});
+
+test('la tendance résume les 25 heures du jour civil, sans la nuit suivante ni les quatre périodes', () => {
+  const start = Date.parse('2026-10-25T00:00:00+02:00');
+  const dashboard = { openMeteo: { hours: Array.from({ length: 34 }, (_, index) => {
+    const i = index - 1, rain = i > 0 && i <= 25 ? .5 : 9;
+    return { time: new Date(start + i * HOUR).toISOString(), rain, liquidRain: rain, snowfall: 0,
+      temperature: i >= 0 && i < 25 ? 5 + i % 12 : -20, cloudCover: 20, windSpeed: 10, windGust: 49, weatherCode: 61 };
+  }) } };
+  const day = dailyRowsTools.buildDailyRows({ dashboard, now }).find(day => day.date === '2026-10-25');
+  assert.equal((day.end - day.start) / HOUR, 25);
+  const html = engine(dashboard).dailyRowDaySummaryMarkup(day);
+  assert.equal((html.match(/class="daily-trend-summary"/g) || []).length, 1);
+  assert.match(html, /Max\.<\/small><strong>16°/);
+  assert.match(html, /Min\.<\/small><b>5°/);
+  assert.ok(html.includes('12,5 mm'));
+  assert.ok(!html.includes('daily-period-gust-volume'));
+  for (const text of ['data-slot-key', '<details', 'Matin', 'Après-midi', 'Soir', 'Nuit']) assert.ok(!html.includes(text), text);
+});
+
+test('la synthèse quotidienne conserve les précipitations inconnues et le seuil des rafales', () => {
+  for (const gust of [49, 50]) {
+    const dashboard = { openMeteo: { hours: Array.from({ length: 49 }, (_, i) => ({
+      time: new Date(now + i * HOUR).toISOString(), temperature: 5, rain: null, liquidRain: null, snowfall: null,
+      cloudCover: 50, windSpeed: 10, windGust: gust
+    })) } };
+    const day = dailyRowsTools.buildDailyRows({ dashboard, now })[1];
+    const html = engine(dashboard).dailyRowDaySummaryMarkup(day);
+    assert.doesNotMatch(html, /<p(?:\s|>)/);
+    assert.ok(!html.includes('Temps sec.'));
+    assert.ok(html.includes('<strong>—</strong>'));
+    assert.equal(html.includes('daily-period-gust-volume'), gust >= 50);
+  }
 });
