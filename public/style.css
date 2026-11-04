@@ -1568,20 +1568,8 @@ button.horizon-period-main:hover{filter:brightness(.97)}
 .daily-trend-overview .daily-period-metrics small { display: flex; align-items: center; gap: 3px; color: #748690; font-size: 9px; font-weight: 800; text-transform: uppercase; }
 .daily-trend-overview .daily-period-metrics small svg { width: 13px; height: 13px; }
 .daily-trend-overview .daily-period-metrics strong { font-size: 16px; line-height: 1; }
-/* The compact SVG is transparent in both native and browser-forced dark mode. */
+/* Let the transparent SVG follow the card theme, including Dark Reader. */
 .piaf-precipitation-view .piaf-timeline-canvas { background: transparent; }
-@media (prefers-color-scheme: dark) {
-  .three-hour-card { color-scheme: dark; color: #d7e3e8; background: #181c1e; border-color: #354851; }
-  .three-hour-card h2 { color: #b5d9ed; }
-  .three-hour-card .piaf-three-hour-view { border-color: #40515a; }
-  .three-hour-card .day-timeline-slot time { color: #b5d9ed; }
-  .three-hour-card .piaf-three-hour-summary small, .three-hour-card .piaf-summary-hazards { color: #a8bdc8; }
-  .three-hour-card .piaf-intensity-chart text { fill: #a8bdc8; }
-  .three-hour-card .day-combined-grid { stroke: #a8bdc8; }
-  .three-hour-card .piaf-summary-min { color: #67bcec; }
-  .three-hour-card .piaf-summary-max { color: #ff835d; }
-  .three-hour-card .piaf-summary-precipitation { color: #67bcec; }
-}
 
 /* Rain and snow scales and bars from the validated local preview. */
 .piaf-precipitation-view .day-timeline-slot .weather-icon { width: var(--piaf-weather-size, 72px); height: var(--piaf-weather-size, 72px); }
@@ -1598,4 +1586,3 @@ button.horizon-period-main:hover{filter:brightness(.97)}
 .piaf-snow-cap { stroke: #fff; stroke-width: 7; vector-effect: non-scaling-stroke; }
 .piaf-intensity-chart .piaf-scale-name { fill: #34546b; font: 700 11px system-ui; }
 .piaf-snow-bar-flake { pointer-events: none; }
-@media (prefers-color-scheme: dark) { .three-hour-card .piaf-intensity-chart .piaf-scale-name, .three-hour-card .piaf-intensity-chart .piaf-rain-unit { fill: #b5d9ed; } }
