@@ -2160,6 +2160,7 @@ function forecastPeriodAvailable(period, meteoFranceRain, meteoFranceWind, meteo
 }
 
 const periodMetricIcons = {
+  snow: "<path d=\"M12 2v20M3.34 7l17.32 10M3.34 17 20.66 7M9 4l3 3 3-3M9 20l3-3 3 3M3.5 10.5l4.1-1.1-1.1-4.1M17.5 18.7l-1.1-4.1 4.1-1.1M6.5 18.7l1.1-4.1-4.1-1.1M20.5 10.5l-4.1-1.1 1.1-4.1\"/>",
   cloud: '<path d="M5.5 18a4.5 4.5 0 0 1-.6-9A6.2 6.2 0 0 1 16.7 8a5 5 0 1 1 .8 10H5.5Z"/>',
   rain: '<path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/>',
   showers: '<path d="M5 10.5a5 5 0 0 1 9.4-2.3A3.8 3.8 0 1 1 17 15H6a3.2 3.2 0 0 1-1-6.2"/><path d="m8 17-1.2 3M12 17l-1.2 3M16 17l-1.2 3"/>',
@@ -2182,7 +2183,7 @@ function periodSourceDetails(sources, key) {
   return sources.filter(source => source[key] != null).map(source => {
     let detail;
     if (key === "rain") {
-      detail = (source.rain > 0 && source.rain < .1 ? "< 0,1" : format(source.rain)) + " mm";
+      detail = source.rain > 0 && source.rain < .1 - 1e-9 ? "gouttes" : format(source.rain) + " mm";
       if (source.probability != null) detail += " · " + format(source.probability, 0) + " %";
       if (source.snowfall > 0) detail += " · " + (Math.round(source.snowfall) || "< 1") + " cm de neige";
       if (source.completeRain === false) detail += " · couverture partielle";
@@ -2202,8 +2203,8 @@ function forecastPeriodDetailsMarkup({ cloud = null, rain = null, rainLabel, win
   hasStorm = null, weatherCode = null, showers = false, hideRain = false, probabilitySummary = rainProbabilitySummary([]),
   rainDisagreement = false, rainTiming, slotKey, sources = [], stormLevel = 3, snowfall = null, liquidRain = null }) {
   const format = (value, digits = 1) => value != null && Number.isFinite(Number(value)) ? Number(value).toLocaleString("fr-FR", { maximumFractionDigits: digits }) : "—";
-  const rainRangeText = rain > 0 && rain < .1 ? "< 0,1" : format(rain);
-  const precipitationText = rainLabel ?? rainRangeText + " mm";
+  const rainRangeText = rain > 0 && rain < .1 - 1e-9 ? "gouttes" : format(rain) + " mm";
+  const precipitationText = rainLabel ?? rainRangeText;
   const rainProbability = probabilitySummary.average;
   const windRangeText = format(wind, 0), gustRangeText = format(gust, 0);
   const cloudSources = periodSourceDetails(sources, "cloudCover"), rainSources = periodSourceDetails(sources, "rain");
@@ -2522,7 +2523,7 @@ function renderTestingDailyForecast() {
     const meteoFranceRainAmount = meteoFranceRain?.amount != null && Number.isFinite(Number(meteoFranceRain.amount)) ? Math.max(0, Number(meteoFranceRain.amount)) : null;
     const rain = weekWeightedValue(openMeteoRain, meteoFranceRainAmount);
     const rainDisagreement = openMeteoRain != null && meteoFranceRainAmount != null && Math.abs(openMeteoRain - meteoFranceRainAmount) >= .05;
-    const rainAmountText = value => value > 0 && value < .1 ? "< 0,1" : format(value);
+    const rainAmountText = value => value > 0 && value < .1 - 1e-9 ? "gouttes" : format(value) + " mm";
     const rainRangeText = rainAmountText(rain);
     const rainProbability = weekWeightedValue(hasOpenMeteoPeriod ? period.precipitationProbabilityMax : null, meteoFranceRain?.probability);
     const probabilitySummary = rainProbabilitySummary([rainProbability]);
@@ -2565,13 +2566,13 @@ function renderTestingDailyForecast() {
     const stormRisk = weekStormRisk(dateKey);
     const stormStep = hasStorm ? Math.max(3, stormRisk.level) : 0;
     const rainVolume = !hideRain && rain >= .1
-      ? '<span class="daily-period-rain-volume" role="img" aria-label="Cumul de pluie ' + escapeText(rainAmountText(rain) + " millimètres") + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/></svg><strong>' + escapeText(rainRangeText) + ' mm</strong></span>'
+      ? '<span class="daily-period-rain-volume" role="img" aria-label="Cumul de pluie ' + escapeText(rainAmountText(rain)) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/></svg><strong>' + escapeText(rainRangeText) + '</strong></span>'
       : "";
     const { hazardMarkup, gustVolume } = forecastPeriodHighlights({ storm: hasStorm, gust, sources: sourcePeriods });
     const notable = forecastPeriodSummaryText({ ...(period || {}), precipitationSum: hideRain ? 0 : rain, precipitationProbabilityMax: hideRain ? 0 : rainProbability, storm: hasStorm });
     const notableMarkup = notable ? '<span class="daily-period-copy">' + escapeText(notable) + '</span>' : "";
     const showers = (Number(period?.weatherCode) >= 80 && Number(period?.weatherCode) <= 82) || hasStorm;
-    const detailsMarkup = forecastPeriodDetailsMarkup({ cloud, rain, rainLabel: rainRangeText + " mm", wind, gust, directionValue,
+    const detailsMarkup = forecastPeriodDetailsMarkup({ cloud, rain, rainLabel: rainRangeText, wind, gust, directionValue,
       hasStorm, weatherCode: period?.weatherCode, showers, hideRain, probabilitySummary, rainDisagreement,
       rainTiming: period?.rainTiming, slotKey: slot.key, sources: sourcePeriods, stormLevel: stormStep });
 
@@ -2698,9 +2699,9 @@ function dailyRowPeriodsMarkup(day, state, sourceRows = []) {
     const probability = rainProbabilitySummary(probabilityValues);
     const snow = period.snowfall > 0;
     const snowAmount = snow ? (Math.round(period.snowfall) || "< 1") + " cm" : "";
-    const rainAmount = rain == null ? "—" : snow ? (period.liquidRain > 0 ? format(period.liquidRain, 2) + " mm · " : "") + snowAmount
-      : (rain > 0 && rain < .01 ? "< 0,01" : rain > 0 && rain < .1 ? "< 0,1" : format(rain, 2)) + " mm";
-    const amount = rainAmount + (period.estimated ? "*" : "") + (rain != null && !period.completeRain ? " (partiel)" : "");
+    const rainQuantity = value => value > 0 && value < .1 - 1e-9 ? "gouttes" : format(value, 2) + " mm";
+    const rainAmount = rain == null ? "—" : snow ? (period.liquidRain > 0 ? rainQuantity(period.liquidRain) + " · " : "") + snowAmount : rainQuantity(rain);
+    const amount = rainAmount + (period.estimated ? "*" : "") + (rain != null && !period.completeRain ? dailyRowsTools.precipitationCoverageSuffix(period.intervals, siteProfile.timezone) : "");
     const weatherCode = sourcePeriods.find(item => item.name === period.sources.storm)?.weatherCode;
     const details = forecastPeriodDetailsMarkup({ cloud: period.cloudCover, rain, rainLabel: snow || period.estimated || !period.completeRain ? amount : undefined,
       wind: period.windSpeed, gust: period.windGust, directionValue: period.windDirection, hasStorm: period.storm,
@@ -2712,7 +2713,9 @@ function dailyRowPeriodsMarkup(day, state, sourceRows = []) {
       rain: item.rain, probability: item.probability, rain3h: item.rain3h,
       stormRainOverlap: item.stormRainOverlap, stormRainWindOverlap: item.stormRainWindOverlap })));
     const time = new Date((start + end) / 2).toISOString();
-    const icon = dailyRowsTools.weatherPictogram({ ...period, time, rain: rain == null ? null : rain >= .01 ? rain / ((end - period.begin) / 3600000) : 0,
+    const iconRain = snow ? period.liquidRain : rain;
+    const icon = dailyRowsTools.weatherPictogram({ ...period, time, rain,
+      rainLevel: iconRain >= .01 ? rainPictogramStep(iconRain) : 0,
       cloudCover: period.cloudCover ?? (period.storm ? 100 : null), stormSignal: false }, displayIcon);
     const temperatures = '<span class="daily-period-temperatures"><span><small>Max.</small><strong>' + format(period.temperatureMax) + '°</strong></span><span><small>Min.</small><b>' + format(period.temperatureMin) + '°</b></span></span>';
     const rainVolume = rain >= .01 ? '<span class="daily-period-rain-volume"><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.rain + '</svg><strong>' + escapeText(rainAmount) + '</strong></span>' : "";
@@ -2723,6 +2726,31 @@ function dailyRowPeriodsMarkup(day, state, sourceRows = []) {
     const summary = '<span class="daily-period-title"' + (title ? ' title="' + escapeText(title) + '"' : '') + '><strong>' + slot.label + '</strong></span><span class="daily-period-icon weather-icon chart-point" tabindex="0" data-tooltip="' + escapeText("Précipitations\n" + sourceDetails("rain").join("\n")) + '">' + (period.available ? icon + hazardMarkup : "—") + '</span><span class="daily-period-values">' + (period.available ? temperatures + rainVolume + gustVolume : "—") + '</span>' + notableMarkup + '<span class="daily-period-chevron" aria-hidden="true">⌄</span>';
     return '<details class="daily-period-card' + (alertTone ? ' daily-period-alert-' + alertTone : '') + (end <= appNow() ? ' daily-period-past' : '') + '" data-period-key="' + day.date + ':' + slot.key + '" data-slot-key="' + slot.key + '"' + (state.openPeriod === slot.key ? ' open' : '') + '><summary>' + summary + '</summary><div class="daily-period-details">' + details + '</div></details>';
   }).join("");
+}
+
+function dailyRowDaySummaryMarkup(day, sourceRows = []) {
+  const period = dailyRowsTools.dailyPeriodSummary(day, day.start, day.end, appNow());
+  const sources = dailyRowsTools.dailyPeriodSourceSummaries(sourceRows, day.date, day.start, day.end, appNow());
+  const sample = dailyRowsTools.dailySummarySample(day);
+  const format = (value, digits = 0) => value == null ? "—" : Number(value).toLocaleString("fr-FR", { maximumFractionDigits: digits });
+  const snow = period.snowfall > 0;
+  const liquidKnown = period.liquidRain != null;
+  const rain = liquidKnown ? period.liquidRain : period.rain;
+  const rainLabel = liquidKnown || ["dry", "rain", "freezing"].includes(sample.phase) ? "Pluie" : "Précip.";
+  const rainAmount = rain == null ? "—" : rain > 0 && rain < .1 - 1e-9 ? "gouttes" : format(rain, 2) + " mm";
+  const rainSuffix = rain == null ? "" : (period.estimated ? "*" : "") + (!period.completeRain ? dailyRowsTools.precipitationCoverageSuffix(period.intervals, siteProfile.timezone) : "");
+  const rainTitle = [liquidKnown ? "Cumul de pluie de la journée" : "Précipitations en équivalent eau ; répartition pluie/neige inconnue",
+    period.estimated ? "Part estimée au prorata" : "", ...periodSourceDetails(sources, "rain")].filter(Boolean).join("\n");
+  const rainVolume = rain == null || rain >= .01 - 1e-9
+    ? '<span class="daily-period-rain-volume" title="' + escapeText(rainTitle) + '"><small><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.rain + '</svg>' + rainLabel + '</small><strong>' + escapeText(rainAmount + rainSuffix) + '</strong></span>' : "";
+  const snowVolume = snow ? '<span class="daily-period-rain-volume daily-period-snow-volume" title="Neige fraîche estimée de la journée ; pas une hauteur au sol"><small><svg class="forecast-snowflake" viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.snow + '</svg>Neige</small><strong>' + (Math.round(period.snowfall) || "&lt; 1") + ' cm' + escapeText(rainSuffix) + '</strong></span>' : "";
+  const { hazardMarkup, gustVolume } = forecastPeriodHighlights({ storm: period.storm, gust: period.windGust, sources });
+  const iconRain = ["rain", "mixed", "freezing"].includes(sample.phase) ? rain : 0;
+  const icon = dailyRowsTools.weatherPictogram({ ...sample, stormSignal: false,
+    rainLevel: rainPictogramStep(iconRain), ...(["snow", "snow-unknown", "mixed"].includes(sample.phase) ? { snowfall: period.snowfall } : {}) }, displayIcon);
+  return '<section class="daily-trend-summary" aria-label="Synthèse de la journée"><div class="daily-trend-overview"><span class="daily-period-icon weather-icon">' + icon + hazardMarkup
+    + '</span><span class="daily-period-values"><span class="daily-period-temperatures"><span><small>Max.</small><strong>' + format(period.temperatureMax) + '°</strong></span><span><small>Min.</small><b>' + format(period.temperatureMin)
+    + '°</b></span></span><span class="daily-period-metrics">' + rainVolume + snowVolume + gustVolume + '</span></span></div></section>';
 }
 
 function alignDailyLegendSources(root) {
@@ -2802,7 +2830,7 @@ function renderWeekForecast() {
     const sourceRows = collapsible ? dailyRowsTools.buildDailySourceRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
       now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16 }) : [];
     target.innerHTML = dailyRowsTools.dailyRowsMarkup(days, { ...chartOptions, now: appNow(), stateForDate,
-      collapsible, periodsMarkup: (day, state) => dailyRowPeriodsMarkup(day, state, sourceRows), updateMarkup: dailyDataUpdateMarkup, chartIconMarkup: graphIconMarkup("daily-day-open-icon"),
+      collapsible, periodsMarkup: (day, state) => day.trend ? dailyRowDaySummaryMarkup(day, sourceRows) : dailyRowPeriodsMarkup(day, state, sourceRows), updateMarkup: dailyDataUpdateMarkup, chartIconMarkup: graphIconMarkup("daily-day-open-icon"),
       controlsMarkup: opacities => forecastMetricControlsMarkup(opacities) });
     target.querySelectorAll("[data-day-date]").forEach(article => {
       const state = stateForDate(article.dataset.dayDate);
@@ -3004,7 +3032,7 @@ function renderWeekForecast() {
     const hideRain = weekRainBelowDisplayThreshold([day.precipitationProbabilityMax], stormActive);
     const icon = displayIcon({ time: day.time, cloudCover: iconCloud, rain: hideRain ? 0 : iconRain, rainLevel: hideRain ? 0 : rainPictogramStep(dailyRain) });
     const openMeteoShowerSignal = sourceKey === "openmeteo" && ((Number(day.showersSum) || 0) >= .1 || code >= 80 && code <= 82);
-    const precipitationTotal = dailyRain > 0 && dailyRain < .1 ? "< 0,1 mm" : dailyRain === 0 && openMeteoShowerSignal ? "type averse" : number(dailyRain) + " mm";
+    const precipitationTotal = dailyRain > 0 && dailyRain < .1 - 1e-9 ? "gouttes" : dailyRain === 0 && openMeteoShowerSignal ? "type averse" : number(dailyRain) + " mm";
     const windDirection = Number.isFinite(Number(day.windDirection)) ? '<span class="week-wind-arrow" style="transform:rotate(' + Number(day.windDirection) + 'deg)">↑</span>' : '';
     const ensembleStatus = sourceKey === "meteofrance" ? latestMeteoFranceWeek?.ensembleStatus?.status : "ready";
     const showersTotal = Number(day.showersSum);
@@ -3106,8 +3134,8 @@ function renderWeekForecast() {
     const rainRange = values => {
       const valid = finite(values);
       if (!valid.length) return "—";
-      const format = value => value > 0 && value < .1 ? "< 0,1" : value.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
-      return (valid.length > 1 && Math.abs(valid[0] - valid[1]) >= .05 ? format(Math.min(...valid)) + " – " + format(Math.max(...valid)) : format(valid[0])) + " mm";
+      const format = value => value > 0 && value < .1 - 1e-9 ? "gouttes" : value.toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " mm";
+      return valid.length > 1 && Math.abs(valid[0] - valid[1]) >= .05 ? format(Math.min(...valid)) + " – " + format(Math.max(...valid)) : format(valid[0]);
     };
     const modelRangeDetail = (label, values, suffix = " km/h") => {
       const valid = finite(values);

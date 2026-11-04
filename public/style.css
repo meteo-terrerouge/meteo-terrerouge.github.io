@@ -1554,3 +1554,47 @@ button.horizon-period-main:hover{filter:brightness(.97)}
 .horizon-detail-track .horizon-axis{height:24px}
 @media(max-width:900px){.horizon-detail-scroll{margin-inline:16px}}
 @media(max-width:700px){.horizon-detail-scroll{margin-inline:10px}}
+
+/* One civil-day summary per card in Tendances. */
+.daily-trend-summary { padding: 14px 12px; }
+.daily-trend-overview { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 8px; }
+.daily-trend-overview .daily-period-icon { position: relative; width: 96px; height: 96px; }
+
+.daily-trend-overview .daily-period-temperatures strong, .daily-trend-overview .daily-period-temperatures b { font-size: 24px; }
+.daily-trend-overview .daily-period-values { align-items: flex-end; flex-wrap: wrap; gap: 10px 20px; }
+.daily-trend-overview .daily-period-metrics { display: flex; flex-wrap: wrap; gap: 10px 14px; min-width: 0; }
+.daily-trend-overview .daily-period-metrics > span { display: grid; gap: 2px; }
+.daily-trend-overview .daily-period-metrics small { display: flex; align-items: center; gap: 3px; color: #748690; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.daily-trend-overview .daily-period-metrics small svg { width: 13px; height: 13px; }
+.daily-trend-overview .daily-period-metrics strong { font-size: 16px; line-height: 1; }
+/* The compact SVG is transparent in both native and browser-forced dark mode. */
+.piaf-precipitation-view .piaf-timeline-canvas { background: transparent; }
+@media (prefers-color-scheme: dark) {
+  .three-hour-card { color-scheme: dark; color: #d7e3e8; background: #181c1e; border-color: #354851; }
+  .three-hour-card h2 { color: #b5d9ed; }
+  .three-hour-card .piaf-three-hour-view { border-color: #40515a; }
+  .three-hour-card .day-timeline-slot time { color: #b5d9ed; }
+  .three-hour-card .piaf-three-hour-summary small, .three-hour-card .piaf-summary-hazards { color: #a8bdc8; }
+  .three-hour-card .piaf-intensity-chart text { fill: #a8bdc8; }
+  .three-hour-card .day-combined-grid { stroke: #a8bdc8; }
+  .three-hour-card .piaf-summary-min { color: #67bcec; }
+  .three-hour-card .piaf-summary-max { color: #ff835d; }
+  .three-hour-card .piaf-summary-precipitation { color: #67bcec; }
+}
+
+/* Rain and snow scales and bars from the validated local preview. */
+.piaf-precipitation-view .day-timeline-slot .weather-icon { width: var(--piaf-weather-size, 72px); height: var(--piaf-weather-size, 72px); }
+.piaf-precipitation-view .piaf-weather-slot time { font-size: var(--piaf-weather-time-size, 11px); }
+.piaf-intensity-chart .piaf-rain-unit { fill: #34546b; font-weight: 700; }
+.piaf-precipitation-view .piaf-rain-bar { fill: var(--phase-color); }
+.piaf-precipitation-view .piaf-rain-bar { fill: url(#piaf-rain-intensity); }
+.piaf-snow-bar, .piaf-snow-scale-bar { fill: #fff; }
+.piaf-snow-bar-edge, .piaf-snow-cap-outline { stroke: #258bc0; vector-effect: non-scaling-stroke; }
+.piaf-snow-bar-edge { fill: none; stroke-width: .8; }
+.piaf-snow-caps { pointer-events: none; }
+.piaf-snow-cap-outline, .piaf-snow-cap { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.piaf-snow-cap-outline { stroke-width: 8.6; }
+.piaf-snow-cap { stroke: #fff; stroke-width: 7; vector-effect: non-scaling-stroke; }
+.piaf-intensity-chart .piaf-scale-name { fill: #34546b; font: 700 11px system-ui; }
+.piaf-snow-bar-flake { pointer-events: none; }
+@media (prefers-color-scheme: dark) { .three-hour-card .piaf-intensity-chart .piaf-scale-name, .three-hour-card .piaf-intensity-chart .piaf-rain-unit { fill: #b5d9ed; } }
