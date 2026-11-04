@@ -1351,6 +1351,7 @@ body.forecast-rows-layout { min-width: 0; }
 .bulletin-day { display: contents; }
 .bulletin-cards-grid > .bulletin-day > .daily-forecast-card { content-visibility: visible; }
 .bulletin-cards-grid { overflow-anchor: none; }
+.bulletin-cards-grid .forecast-trend-start { grid-column-start: 1; }
 .bulletin-cards-grid .daily-forecast-card > header { flex-wrap: wrap; gap: 6px 10px; }
 .bulletin-cards-grid .day-date-heading { display: block; }
 .bulletin-cards-grid .day-date-heading h3 { margin: 0; color: #173b52; font-size: 18px; letter-spacing: -.02em; text-transform: capitalize; }
