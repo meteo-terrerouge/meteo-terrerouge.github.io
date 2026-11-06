@@ -122,15 +122,15 @@ const shortTermWindIntensityLevel = (meanWind, gust) => {
   return Math.max(meanWindIntensityLevel(meanSpeed), gustIntensityLevel(gustSpeed));
 };
 
-function forecastSourceAlertTone({ wind = 0, gust = 0, probability = 0, rain = 0, rain3h = 0, stormRainOverlap = false, stormRainWindOverlap = false } = {}) {
+function forecastSourceAlertTone({ wind = 0, gust = 0, probability = 0, rain = 0, rain3h = 0, deterministic = false, stormRainOverlap = false, stormRainWindOverlap = false } = {}) {
   const windValue = Math.max(0, Number(wind) || 0);
   const gustValue = Math.max(0, Number(gust) || 0);
   const probabilityValue = Math.max(0, Number(probability) || 0);
   const rainValue = Math.max(0, Number(rain) || 0);
   const rain3hValue = Math.max(0, Number(rain3h) || 0);
-  const rainAttention = probabilityValue >= 70 && (rain3hValue >= 10 || rainValue >= 15);
-  const rainSerious = probabilityValue >= 70 && (rain3hValue >= 20 || rainValue >= 30);
-  const rainAlert = probabilityValue >= 80 && (rain3hValue >= 40 || rainValue >= 60);
+  const rainAttention = (deterministic || probabilityValue >= 70) && (rain3hValue >= 10 || rainValue >= 15);
+  const rainSerious = (deterministic || probabilityValue >= 70) && (rain3hValue >= 20 || rainValue >= 30);
+  const rainAlert = (deterministic || probabilityValue >= 80) && (rain3hValue >= 40 || rainValue >= 60);
   const windAttention = windValue >= 40 || gustValue >= 60;
   const windSerious = windValue >= 60 || gustValue >= 80;
   const windAlert = windValue >= 80 || gustValue >= 100;
@@ -2586,19 +2586,20 @@ function renderTestingDailyForecast() {
     const meteoFranceStormRainWindOverlap = (meteoFranceWind?.stormWindTimes || []).some(stormTime =>
       (meteoFranceRain?.intervals || []).some(interval => interval.amount >= 1 && stormTime >= interval.start && stormTime < interval.end)
     );
-    const alertTone = forecastSlotAlertTone([
-      {
-        wind,
-        gust,
-        probability: rainProbability,
-        rain,
-        rain3h: weekWeightedValue(hasOpenMeteoPeriod ? period.peakRain3h : null, meteoFranceRain?.peak3h),
-        stormRainOverlap: (hasOpenMeteoStorm && Boolean(period?.stormRainOverlap))
-          || (hasMeteoFranceStorm && meteoFranceStormRainOverlap),
-        stormRainWindOverlap: (hasOpenMeteoStorm && Boolean(period?.stormRainWindOverlap))
-          || (hasMeteoFranceStorm && meteoFranceStormRainWindOverlap)
-      }
-    ]);
+    const meteoFranceAlertAvailable = meteoFranceRainAmount != null || meteoFranceWindValue != null
+      || meteoFranceGustValue != null || hasMeteoFranceStorm || meteoFranceStorm?.available === true;
+    const alertTone = forecastSlotAlertTone([meteoFranceAlertAvailable ? {
+      wind: meteoFranceWindValue, gust: meteoFranceGustValue,
+      probability: meteoFranceRain?.probability, deterministic: true,
+      rain: meteoFranceRainAmount, rain3h: meteoFranceRain?.peak3h,
+      stormRainOverlap: hasMeteoFranceStorm && meteoFranceStormRainOverlap,
+      stormRainWindOverlap: hasMeteoFranceStorm && meteoFranceStormRainWindOverlap
+    } : {
+      wind: openMeteoWind, gust: openMeteoGust, probability: period?.precipitationProbabilityMax,
+      rain: openMeteoRain, rain3h: period?.peakRain3h,
+      stormRainOverlap: hasOpenMeteoStorm && Boolean(period?.stormRainOverlap),
+      stormRainWindOverlap: hasOpenMeteoStorm && Boolean(period?.stormRainWindOverlap)
+    }]);
     const alertClass = alertTone ? " daily-period-alert-" + alertTone : "";
     const titleAttribute = labelTitle ? ' title="' + escapeText(labelTitle) + '"' : "";
     return '<details class="daily-period-card' + alertClass + pastClass + '" data-period-key="' + escapeText(periodKey) + '"><summary><span class="daily-period-title"' + titleAttribute + '><strong>' + label + '</strong>' + vigilanceSlotIcons(vigilanceAlerts) + '</span><span class="daily-period-icon weather-icon chart-point" tabindex="0" data-tooltip="' + escapeText("Précipitations\n" + rainSources.filter(Boolean).join("\n")) + '">' + icon + hazardMarkup + '</span><span class="daily-period-values">' + temperature + rainVolume + gustVolume + '</span>' + notableMarkup + '<span class="daily-period-chevron" aria-hidden="true">⌄</span></summary><div class="daily-period-details">' + detailsMarkup + '</div></details>';
@@ -2709,8 +2710,9 @@ function dailyRowPeriodsMarkup(day, state, sourceRows = []) {
       probabilitySummary: probability, rainTiming: period.rainTiming,
       slotKey: slot.key, sources: sourcePeriods, snowfall: period.snowfall, liquidRain: period.liquidRain });
     const { hazardMarkup, gustVolume } = forecastPeriodHighlights({ storm: period.storm, gust: period.windGust, sources: sourcePeriods });
-    const alertTone = forecastSlotAlertTone(sourcePeriods.map(item => ({ wind: item.windSpeed, gust: item.windGust,
-      rain: item.rain, probability: item.probability, rain3h: item.rain3h,
+    const alertPeriods = dailyRowsTools.dailyPeriodAlertSummaries(sourceRows, day.date, start, end, appNow());
+    const alertTone = forecastSlotAlertTone(alertPeriods.map(item => ({ wind: item.windSpeed, gust: item.windGust,
+      rain: item.rain, probability: item.probability, rain3h: item.rain3h, deterministic: item.deterministic,
       stormRainOverlap: item.stormRainOverlap, stormRainWindOverlap: item.stormRainWindOverlap })));
     const time = new Date((start + end) / 2).toISOString();
     const iconRain = snow ? period.liquidRain : rain;

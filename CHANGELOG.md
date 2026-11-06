@@ -31,3 +31,5 @@
 06/11/2026 18:10 — v0.037 — Suppression des rectangles d’indisponibilité des précipitations sur la frise 24 h ; repère discret en bas du graphique pour préserver la lecture continue des autres courbes.
 
 06/11/2026 18:25 — v0.038 — Neige représentée en blanc avec des congères sur les frises 24 h, comme sur la frise 3 h ; conservation des cumuls, unités et interruptions des précipitations.
+
+06/11/2026 18:38 — v0.039 — Couleurs d’avertissement fondées en priorité sur AROME puis ARPEGE dans leurs échéances couvertes ; Open-Meteo prend le relais uniquement sur les créneaux non couverts, sans mélange de cumuls et de probabilités entre modèles.

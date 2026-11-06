@@ -394,6 +394,38 @@ export function dailyPeriodSourceSummaries(sourceRows, date, start, end, now = D
   });
 }
 
+// Alert colours follow the acquired forecast horizon: AROME, then ARPEGE,
+// then Open-Meteo. Split a period at real coverage boundaries so the end of a
+// model run cannot suppress a warning in the following uncovered hours.
+export function dailyPeriodAlertSummaries(sourceRows, date, start, end, now = Date.now()) {
+  const summaries = dailyPeriodSourceSummaries(sourceRows, date, start, end, now);
+  const priority = ['AROME', 'ARPEGE', 'Open-Meteo'];
+  const candidates = priority.flatMap(name => {
+    const summary = summaries.find(item => item.name === name);
+    if (!summary) return [];
+    const lastPoint = Math.max(...(sourceRows.find(row => row.name === name)?.hours || []).map(hour => Date.parse(hour.time)));
+    const spans = [...summary.intervals.map(interval => ({ start: interval.start, end: interval.end })),
+      ...summary.samples.filter(sample => ['windSpeed', 'windGust', 'storm'].some(key => valid(sample[key])))
+        .map(sample => ({ start: sample.stamp, end: Math.min(sample.intervalEnd, lastPoint) }))]
+      .map(span => ({ start: Math.max(summary.begin, span.start), end: Math.min(end, span.end) }))
+      .filter(span => span.end > span.start);
+    return spans.length ? [{ name, spans }] : [];
+  });
+  const boundaries = [...new Set([Math.max(start, now < end ? now : start), end,
+    ...candidates.flatMap(candidate => candidate.spans.flatMap(span => [span.start, span.end]))])].sort((a, b) => a - b);
+  const segments = [];
+  for (let index = 0; index < boundaries.length - 1; index++) {
+    const begin = boundaries[index], stop = boundaries[index + 1];
+    const owner = candidates.find(candidate => candidate.spans.some(span => span.start <= begin && span.end >= stop));
+    if (!owner) continue;
+    const previous = segments.at(-1);
+    if (previous?.name === owner.name && previous.end === begin) previous.end = stop;
+    else segments.push({ name: owner.name, start: begin, end: stop });
+  }
+  return segments.flatMap(segment => dailyPeriodSourceSummaries(sourceRows.filter(row => row.name === segment.name),
+    date, segment.start, segment.end, now).map(summary => ({ ...summary, deterministic: segment.name !== 'Open-Meteo' })));
+}
+
 function extent(samples, key, fallback) {
   const entries = values(samples, key);
   return entries.length ? [Math.min(...entries), Math.max(...entries)] : fallback;

@@ -86,6 +86,76 @@ test('les seuils des rafales et les trois couleurs sont communs, sans mélange d
   assert.equal(e.forecastSlotAlertTone([{ probability: 95, rain: 1 }, { probability: 10, rain: 40 }]), '');
 });
 
+const alertHours = (count, rain = 0, extra = {}) => Array.from({ length: count + 1 }, (_, index) => ({
+  time: new Date(now + index * HOUR).toISOString(), rain: index ? rain : null,
+  liquidRain: index ? rain : null, snowfall: 0, temperature: 6, cloudCover: 100,
+  windSpeed: 10, windGust: 20, weatherCode: 61, probability: 100, ...extra
+}));
+const periodAlert = input => {
+  const day = dailyRowsTools.buildDailyRows({ ...input, now })[0];
+  const rows = dailyRowsTools.buildDailySourceRows({ ...input, now });
+  const summaries = dailyRowsTools.dailyPeriodAlertSummaries(rows, day.date, now, now + 6 * HOUR, now);
+  const html = engine(input.dashboard).dailyRowPeriodsMarkup(day, {}, rows);
+  return { summaries, tone: html.match(/daily-period-alert-(yellow|orange|red)/)?.[1] || '' };
+};
+
+test('couleurs : AROME puis ARPEGE priment sur un scénario Open-Meteo plus alarmant', () => {
+  for (const source of ['arome', 'arpege']) {
+    const input = { dashboard: { openMeteo: { hours: alertHours(6, 20, { windGust: 120 }) } } };
+    const model = { hours: alertHours(6, 0, { probability: null }) };
+    if (source === 'arome') input.dashboard.arome = model; else input.week = model;
+    const result = periodAlert(input);
+    assert.equal(result.tone, '');
+    assert.deepEqual(result.summaries.map(s => s.name), [source === 'arome' ? 'AROME' : 'ARPEGE']);
+  }
+  const input = { dashboard: { arome: { hours: alertHours(6) }, openMeteo: { hours: alertHours(6, 20) } },
+    week: { hours: alertHours(6, 20) } };
+  assert.equal(periodAlert(input).tone, '', 'AROME prioritaire aussi sur ARPEGE dans ses échéances');
+});
+
+test('couleurs : les cumuls déterministes Météo-France ne dépendent pas d’une probabilité Open-Meteo', () => {
+  for (const [amount, expected] of [[2.5, 'yellow'], [5, 'orange'], [10, 'red']]) {
+    const result = periodAlert({ dashboard: { arome: { hours: alertHours(6, amount, { probability: null }) },
+      openMeteo: { hours: alertHours(6, 0, { probability: 0 }) } } });
+    assert.equal(result.tone, expected);
+    assert.equal(result.summaries[0].probability, null, 'aucune probabilité inventée');
+    assert.equal(result.summaries[0].deterministic, true);
+  }
+});
+
+test('couleurs : relais exact AROME → ARPEGE → Open-Meteo dans un même créneau', () => {
+  const input = { dashboard: { arome: { hours: alertHours(2) },
+    openMeteo: { hours: alertHours(6, 10, { windGust: 60 }) } }, week: { hours: alertHours(4) } };
+  const before = structuredClone(input), result = periodAlert(input);
+  assert.deepEqual(result.summaries.map(s => [s.name, s.start, s.end]), [
+    ['AROME', now, now + 2 * HOUR], ['ARPEGE', now + 2 * HOUR, now + 4 * HOUR],
+    ['Open-Meteo', now + 4 * HOUR, now + 6 * HOUR]
+  ]);
+  assert.equal(result.summaries[2].rain, 20, 'seul le cumul Open-Meteo hors couverture MF intervient');
+  assert.equal(result.tone, 'orange');
+  assert.deepEqual(input, before);
+});
+
+test('couleurs : Open-Meteo reprend après la couverture MF et dans une vraie absence de données de risque', () => {
+  for (const model of [undefined, { hours: alertHours(6).map(h => ({ ...h,
+    time: new Date(Date.parse(h.time) - 24 * HOUR).toISOString() })) },
+    { hours: alertHours(6, null, { windSpeed: null, windGust: null, weatherCode: null }) }]) {
+    const result = periodAlert({ dashboard: { arome: model, openMeteo: { hours: alertHours(6, 0, { windGust: 100 }) } } });
+    assert.equal(result.tone, 'red');
+    assert.deepEqual(result.summaries.map(s => s.name), ['Open-Meteo']);
+  }
+});
+
+test('couleurs : le rendu historique privilégie aussi Météo-France, sans supprimer le repli hors couverture', () => {
+  const e = engine(), period = { precipitationSum: 80, precipitationProbabilityMax: 100,
+    peakRain3h: 40, windSpeedMax: 80, windGustMax: 120, temperatureMin: 5, temperatureMax: 6 };
+  const render = (rain, wind) => e.periodCard(period, 'Matin', '', slot, '2026-10-24', 'matin',
+    false, [], rain, wind, true);
+  assert.ok(!render({ amount: 0 }, { speed: 10, gust: 20 }).includes('daily-period-alert-'));
+  assert.match(render({ amount: 30 }, { speed: 10, gust: 20 }), /daily-period-alert-orange/);
+  assert.match(render(null, null), /daily-period-alert-red/);
+});
+
 test('le survol commun conserve valeurs par source, probabilité et flèches sans dates', () => {
   const e = engine();
   const detail = e.periodSourceDetails([{ name: 'AROME', rain: 1.4, trends: { rain: '↗' } },
