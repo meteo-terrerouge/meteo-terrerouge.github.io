@@ -60,3 +60,23 @@ test('hash comments work in Actions and admin without changing quoted hashes or 
   assert.equal(parsePrivateConfig(text).site.name,config.site.name);
   assert.equal(adminTokenFromConfig(text,'example/weather'),config.githubToken);
 });
+
+test('la configuration serveur permet de se passer de compte GitHub sans contourner le contrôle du dépôt en Actions', async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), 'bulletin-server-config-'));
+  try {
+    const config = value();
+    config.site.apiMode = 'server';
+    config.site.apiBaseUrl = 'https://api.example/';
+    delete config.site.githubRepository;
+    delete config.githubToken;
+    assert.equal(parsePrivateConfig(JSON.stringify(config)).githubToken, '');
+    await assert.rejects(preparePrivateConfig({ text: JSON.stringify(config), workspace, expectedRepository: 'example/weather' }), /autre dépôt/);
+    config.site.githubRepository = 'example/weather';
+    const outputFile = path.join(workspace, 'outputs');
+    await preparePrivateConfig({ text: JSON.stringify(config), workspace, expectedRepository: 'example/weather', outputFile });
+    assert.match(await readFile(outputFile, 'utf8'), /api-mode=server\n/);
+    config.site.apiMode = 'github-actions';
+    delete config.site.githubRepository;
+    assert.throws(() => parsePrivateConfig(JSON.stringify(config)), /githubRepository/);
+  } finally { await rm(workspace, { recursive: true, force: true }); }
+});

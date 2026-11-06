@@ -2,8 +2,8 @@ import { mergeWeatherState } from './state.mjs';
 
 // Restauration depuis l'adresse publique de l'installation, sans jeton d'API.
 export async function restorePublishedWeather({ profile, entry = {}, fetchImpl = fetch }) {
-  if (!profile.publicUrl) return { entry, warnings: [] };
-  const base = new URL('data/', profile.publicUrl);
+  if (!profile.apiBaseUrl && !profile.publicUrl) return { entry, warnings: [] };
+  const base = new URL('data/', profile.apiBaseUrl || profile.publicUrl);
   if (base.protocol !== 'https:') throw new Error('Restauration publique HTTPS requise.');
   const warnings = [];
   const get = async name => {

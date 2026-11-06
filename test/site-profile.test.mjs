@@ -68,3 +68,16 @@ test('the internal identifier is generated from coordinates and survives a title
   assert.equal(first.id,renamed.id);
   assert.notEqual(first.id,normalizeSiteProfile({...input,latitude:48.9}).id);
 });
+
+test('le collecteur API est indépendant de l’hébergement et exige une URL publique sans secret', () => {
+  assert.equal(normalizeSiteProfile(input()).apiMode, 'github-actions');
+  const server = normalizeSiteProfile({ ...input(), apiMode: 'server', apiBaseUrl: 'https://api.example/meteo', publicUrl: 'https://example.github.io/' });
+  assert.equal(server.apiBaseUrl, 'https://api.example/meteo/');
+  assert.equal(server.features.nowcasting, false);
+  assert.equal(server.features.radar, false);
+  for (const change of [
+    { apiMode: 'unknown' }, { apiMode: 'server' }, { apiBaseUrl: null },
+    { apiBaseUrl: 'http://api.example/' }, { apiBaseUrl: 'https://key:secret@api.example/' },
+    { apiBaseUrl: 'https://api.example/?key=secret' }, { apiBaseUrl: 'https://api.example/#key' }
+  ]) assert.throws(() => normalizeSiteProfile({ ...input(), ...change }));
+});

@@ -12,6 +12,7 @@
     "build": "node scripts/build.mjs",
     "collect": "node scripts/collect-weather.mjs",
     "preview": "node scripts/preview.mjs",
+    "serve": "node scripts/server.mjs",
     "check": "node scripts/check.mjs",
     "test": "node --test test/*.test.mjs"
   },

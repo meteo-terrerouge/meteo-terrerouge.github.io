@@ -17,7 +17,7 @@ const apiUrl = path => {
   if (runtimeConfig.dataMode === "static" && relative.startsWith("api/")) {
     const resource = relative.split("?", 1)[0].slice(4);
     if (!["dashboard", "week", "config"].includes(resource)) throw new Error("Ressource statique inconnue");
-    return new URL("data/" + resource + ".json", document.baseURI);
+    return new URL("data/" + resource + ".json", apiBaseUrl);
   }
   return new URL(relative, apiBaseUrl);
 };
@@ -939,7 +939,7 @@ const publicDataCacheName = "meteo-public-data-v2-" + siteProfile.id + "-" + new
 function cacheableApiTarget(target) {
   try {
     const url = new URL(target, document.baseURI);
-    return runtimeConfig.dataMode === "static" && url.origin === location.origin && /\/data\/(dashboard|week)\.json$/.test(url.pathname)
+    return runtimeConfig.dataMode === "static" && url.origin === apiBaseUrl.origin && /\/data\/(dashboard|week)\.json$/.test(url.pathname)
       || url.origin === apiBaseUrl.origin && /\/api\/(dashboard|week)$/.test(url.pathname)
       || ["api.open-meteo.com", "ensemble-api.open-meteo.com"].includes(url.hostname);
   } catch {
@@ -973,7 +973,7 @@ async function json(url) {
   if (window.METEO_REPLAY?.request) return window.METEO_REPLAY.request(String(url));
   const target = typeof url === "string" && /^\/?api\//.test(url) ? apiUrl(url) : url;
   const isPreparedDashboard = /\/api\/dashboard(?:\?|$)/.test(String(target));
-  const response = await fetch(target, { cache: isPreparedDashboard ? "default" : "no-store" });
+  const response = await fetch(target, { cache: isPreparedDashboard && runtimeConfig.dataMode !== "server" ? "default" : "no-store", credentials: "omit" });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Erreur " + response.status);
   void writeCachedJson(target, data);

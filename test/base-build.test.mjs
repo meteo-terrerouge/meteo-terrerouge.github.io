@@ -122,3 +122,41 @@ test('a private configuration can build the bulletin without including either cr
   const configText = await readFile(path.join(root,'dist/runtime-config.js'),'utf8');
   assert.ok(configText.includes('example/weather'));
 });
+
+test('une installation serveur se construit sans GitHub et le site externe peut lire les JSON GitHub', async () => {
+  const configuration = path.join(root, '.cache', 'standalone.private.conf');
+  await mkdir(path.dirname(configuration), { recursive: true });
+  const site = { name: 'Bulletin autonome', latitude: 48.8566, longitude: 2.3522,
+    publicUrl: 'https://weather.example/', apiMode: 'server', apiBaseUrl: 'https://api.example/weather/' };
+  await writeFile(configuration, JSON.stringify({ site, meteoFranceToken: 'private-server-test-token' }));
+  build('--config=' + configuration);
+  const context = { window: {} };
+  const text = await readFile(path.join(root, 'dist/runtime-config.js'), 'utf8');
+  assert.equal(text.includes('private-server-test-token'), false);
+  runInNewContext(text, context);
+  assert.equal(context.window.METEO_RUNTIME_CONFIG.dataMode, 'server');
+  assert.equal(context.window.METEO_RUNTIME_CONFIG.apiBase, site.apiBaseUrl);
+  assert.equal(context.window.METEO_RUNTIME_CONFIG.management.repository, '');
+
+  site.apiMode = 'github-actions';
+  site.githubRepository = 'example/example.github.io';
+  site.apiBaseUrl = 'https://example.github.io/';
+  await writeFile(configuration, JSON.stringify({ site, meteoFranceToken: '' }));
+  build('--config=' + configuration);
+  runInNewContext(await readFile(path.join(root, 'dist/runtime-config.js'), 'utf8'), context);
+  assert.equal(context.window.METEO_RUNTIME_CONFIG.dataMode, 'static');
+  assert.equal(context.window.METEO_RUNTIME_CONFIG.apiBase, site.apiBaseUrl);
+  // Exercise the actual browser URL resolver for default, remote JSON and live API configurations.
+  const script = (await readFile(path.join(root, 'public/app.js'), 'utf8')).split('let basicForecastTools = null;')[0];
+  for (const [runtime, expected] of [
+    [{ dataMode: 'static' }, 'https://weather.example/data/dashboard.json'],
+    [context.window.METEO_RUNTIME_CONFIG, 'https://example.github.io/data/dashboard.json'],
+    [{ dataMode: 'server', apiBase: 'https://api.example/weather/' }, 'https://api.example/weather/api/dashboard?lat=48.8566']
+  ]) {
+    const browser = { URL, Map, window: { METEO_RUNTIME_CONFIG: runtime }, document: { baseURI: 'https://weather.example/' } };
+    // Keep module loading out of this URL-resolution test.
+    browser.window.METEO_RUNTIME_CONFIG = { ...runtime, site: {} };
+    runInNewContext(script + '\nresult = String(apiUrl("api/dashboard?lat=48.8566"));', browser);
+    assert.equal(browser.result, expected);
+  }
+});

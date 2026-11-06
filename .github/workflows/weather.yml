@@ -39,6 +39,7 @@ jobs:
         run: node scripts/private-config.mjs
       - name: Choisir la collecte
         id: collect
+        if: github.event_name != 'schedule' || steps.config.outputs.api-mode != 'server'
         env:
           REQUESTED_GROUP: ${{ inputs.group }}
           SCHEDULE: ${{ github.event.schedule }}
@@ -49,32 +50,35 @@ jobs:
           appendFileSync(process.env.GITHUB_OUTPUT, 'group=' + group + '\n');
           NODE
       - uses: actions/cache/restore@v4
+        if: steps.collect.outcome == 'success'
         with:
           path: .cache/weather/site.json
           key: weather-site-v1-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: weather-site-v1-
       - name: Préparer le bulletin
         id: bulletin
+        if: steps.collect.outcome == 'success'
         uses: ./
         with:
           profile: ${{ steps.config.outputs.profile }}
           state: .cache/weather/site.json
-          collect: ${{ steps.collect.outputs.group != 'cached' }}
+          collect: ${{ steps.config.outputs.api-mode != 'server' && steps.collect.outputs.group != 'cached' }}
           group: ${{ steps.collect.outputs.group == 'cached' && 'all' || steps.collect.outputs.group }}
       - name: Conserver les acquisitions disponibles
-        if: always() && hashFiles('.cache/weather/site.json') != ''
+        if: always() && steps.collect.outcome == 'success' && hashFiles('.cache/weather/site.json') != ''
         uses: actions/cache/save@v4
         with:
           path: .cache/weather/site.json
           key: weather-site-v1-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Fournir le bulletin préparé
+        if: steps.bulletin.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: bulletin-meteo-preview
           path: ${{ steps.bulletin.outputs.site-directory }}
           include-hidden-files: true
       - name: Préparer la publication
-        if: github.ref_name == github.event.repository.default_branch && (github.event_name == 'schedule' || inputs.publish)
+        if: steps.bulletin.outcome == 'success' && github.ref_name == github.event.repository.default_branch && (github.event_name == 'schedule' || inputs.publish)
         uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ steps.bulletin.outputs.site-directory }}

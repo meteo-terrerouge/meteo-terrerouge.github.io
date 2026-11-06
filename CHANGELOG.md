@@ -17,3 +17,5 @@
 04/11/2026 19:03 — v0.030 — La frise 3 h suit le thème de la page : claire sans Dark Reader, sombre avec l’extension, sans fond sombre imposé par le thème système.
 
 04/11/2026 19:18 — v0.031 — Dans le résumé de la frise 3 h, une goutte barrée remplace le texte « Pas de pluie » ; la limite horaire reste affichée si la couverture est incomplète.
+
+06/11/2026 11:24 — v0.032 — Choix de collecte des API météo entre GitHub Actions et serveur personnel ; hébergement du site indépendant, avec installation serveur sans compte GitHub. Nowcasting/radar et archives prévus comme deux modules serveur distincts.

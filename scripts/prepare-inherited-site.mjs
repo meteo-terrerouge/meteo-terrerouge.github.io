@@ -22,7 +22,7 @@ export async function prepareInheritedSite({
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative) || stateFile === profileFile) throw new Error('Le cache doit rester dans le dossier de travail et être distinct du profil.');
   let entry = await readFile(stateFile, 'utf8').then(JSON.parse).catch(error => { if (error.code === 'ENOENT') return {}; throw error; });
   if (entry.siteId && (entry.siteId !== profile.id || entry.latitude !== profile.latitude || entry.longitude !== profile.longitude)) throw new Error('Le cache appartient à un autre lieu.');
-  const restored = await restorePublishedWeather({ profile, entry, fetchImpl });
+  const restored = profile.apiMode === 'server' ? { entry, warnings: [] } : await restorePublishedWeather({ profile, entry, fetchImpl });
   entry = restored.entry;
   const mergeUpdates = async target => {
     const relativePath = path.relative(path.resolve(workspace), target);
@@ -48,7 +48,7 @@ export async function prepareInheritedSite({
     await rename(stateFile + '.tmp', stateFile);
   };
   let errors = [];
-  if (collect) {
+  if (collect && profile.apiMode !== 'server') {
     const result = await collectWeather({ profile, entry, token, group, checkpoint });
     entry = result.entry;
     errors = result.errors;

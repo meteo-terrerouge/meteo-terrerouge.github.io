@@ -2,13 +2,16 @@ import { execFileSync } from 'node:child_process';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readSiteProfile } from '../sites/profiles.mjs';
+import { readSiteProfile, normalizeSiteProfile } from '../sites/profiles.mjs';
+import { parsePrivateConfig } from './private-config.mjs';
 import { publicWeatherFiles } from '../weather/state.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const target = path.join(root, 'dist');
 const profilePath = process.argv.find(value => value.startsWith('--profile='))?.slice(10);
-const profile = await readSiteProfile(profilePath);
+const configPath = process.argv.find(value => value.startsWith('--config='))?.slice(9);
+if (profilePath && configPath) throw new Error('Choisir --profile ou --config.');
+const profile = configPath ? normalizeSiteProfile(parsePrivateConfig(await readFile(configPath, 'utf8')).site) : await readSiteProfile(profilePath);
 const statePath = process.argv.find(value => value.startsWith('--state='))?.slice(8);
 const entry = statePath ? JSON.parse(await readFile(path.resolve(statePath), 'utf8')) : {};
 if (statePath && (entry.siteId !== profile.id || entry.latitude !== profile.latitude || entry.longitude !== profile.longitude)) {
@@ -43,7 +46,7 @@ if (!repository && profile.publicUrl) {
 let revision = '';
 try { revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(); } catch {}
 const management = { repository, branch: profile.githubBranch || 'main', revision };
-const runtime = { management, apiBase: './', dataMode: 'static', site: profile, changelogUrl: 'changelog.html', releaseNumber: version };
+const runtime = { management, apiBase: profile.apiBaseUrl || './', dataMode: profile.apiMode === 'server' ? 'server' : 'static', site: profile, changelogUrl: 'changelog.html', releaseNumber: version };
 await writeFile(path.join(target, 'runtime-config.js'), 'window.METEO_RUNTIME_CONFIG = Object.freeze(' + JSON.stringify(runtime, null, 2) + ');\n');
 await mkdir(path.join(target, 'data'), { recursive: true });
 for (const [file, data] of Object.entries(publicWeatherFiles(profile, entry, version))) {

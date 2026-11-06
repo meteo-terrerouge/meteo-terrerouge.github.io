@@ -6,6 +6,7 @@ const base = {
   latitude: null, longitude: null, department: null, timezone: 'Europe/Paris',
   forecastLayout: 'daily-rows', forecastDays: 16, dailyPresentation: 'period-cards',
   headerAltitude: null,
+  apiMode: 'github-actions',
   features: {
     piaf: true, arome: true, arpege: true, pearome: false, vigilance: true,
     nowcasting: false, radar: false, pam: false, lightning: false,
@@ -21,7 +22,7 @@ export function siteProfile(id = base.id) {
 export function normalizeSiteProfile(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Profil de lieu invalide.');
   const profile = siteProfile();
-  const keys = ['id', 'name', 'place', 'latitude', 'longitude', 'department', 'timezone', 'headerAltitude', 'publicUrl', 'githubRepository', 'githubBranch', 'meteoTokenSecret'];
+  const keys = ['id', 'name', 'place', 'latitude', 'longitude', 'department', 'timezone', 'headerAltitude', 'publicUrl', 'githubRepository', 'githubBranch', 'meteoTokenSecret', 'apiMode', 'apiBaseUrl'];
   for (const key of Object.keys(value)) {
     if (!keys.includes(key)) throw new Error('Paramètre de lieu inconnu : ' + key);
     profile[key] = value[key];
@@ -40,6 +41,14 @@ export function normalizeSiteProfile(value) {
   if (profile.githubRepository !== undefined && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(profile.githubRepository)) throw new Error('Dépôt GitHub invalide.');
   if (profile.githubBranch !== undefined && !/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(profile.githubBranch)) throw new Error('Branche GitHub invalide.');
   if (profile.meteoTokenSecret !== undefined && !/^[A-Z_][A-Z0-9_]*$/.test(profile.meteoTokenSecret)) throw new Error('Nom du secret météo invalide.');
+  if (!['github-actions', 'server'].includes(profile.apiMode)) throw new Error('Mode de collecte API invalide.');
+  if (profile.apiMode === 'server' && !profile.apiBaseUrl) throw new Error('Adresse du serveur API requise.');
+  if (profile.apiBaseUrl !== undefined) {
+    let url;
+    try { url = new URL(profile.apiBaseUrl); } catch { throw new Error('Adresse du serveur API invalide.'); }
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('Adresse de données HTTPS invalide.');
+    profile.apiBaseUrl = url.href.endsWith('/') ? url.href : url.href + '/';
+  }
   if (profile.publicUrl) {
     const url = new URL(profile.publicUrl);
     if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('Adresse publique HTTPS invalide.');
