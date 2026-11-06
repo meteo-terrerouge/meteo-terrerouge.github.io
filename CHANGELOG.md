@@ -21,3 +21,13 @@
 06/11/2026 11:24 — v0.032 — Choix de collecte des API météo entre GitHub Actions et serveur personnel ; hébergement du site indépendant, avec installation serveur sans compte GitHub. Nowcasting/radar et archives prévus comme deux modules serveur distincts.
 
 06/11/2026 13:20 — v0.033 — Autorisation de l’origine API configurée dans la politique de connexion du navigateur, pour charger les données depuis le serveur personnel ou une source JSON externe.
+
+06/11/2026 13:38 — v0.034 — Survol de la frise 3 h limité au cumul PIAF, à l’intensité selon la nature des précipitations et à une flèche de tendance.
+
+06/11/2026 14:24 — v0.035 — Dans la frise 24 h, cumuls PIAF seuls sur les trois prochaines heures, conservation des pas de cinq minutes en mm et des intensités en mm/h, sans remplacer les données manquantes par un autre modèle.
+
+06/11/2026 14:33 — v0.036 — Raccord continu entre les échéances PIAF réellement disponibles et les modèles dans la frise 24 h, sans bande d’indisponibilité artificielle, sans chevauchement et sans prolongation des cumuls PIAF.
+
+06/11/2026 18:10 — v0.037 — Suppression des rectangles d’indisponibilité des précipitations sur la frise 24 h ; repère discret en bas du graphique pour préserver la lecture continue des autres courbes.
+
+06/11/2026 18:25 — v0.038 — Neige représentée en blanc avec des congères sur les frises 24 h, comme sur la frise 3 h ; conservation des cumuls, unités et interruptions des précipitations.

@@ -48,7 +48,8 @@ test('un seul diagramme pluie/neige : mm équivalent eau pour la hauteur, cm pou
   assert.equal(groups.length, 3, 'un regroupement ne mélange pas des phases différentes');
   const html = dailyChartMarkup(day, { width: 1800, iconMarkup: () => '<span class="test-cloud"></span>' });
   assert.equal((html.match(/class="day-combined-svg"/g) || []).length, 1);
-  assert.equal((html.match(/class="day-combined-rain"/g) || []).length, 3);
+  assert.equal((html.match(/class="day-combined-rain"/g) || []).length, 2, 'bleu pour la pluie et le mélange');
+  assert.equal((html.match(/class="piaf-snow-bar"/g) || []).length, 2, 'blanc pour la neige et le mélange');
   assert.ok(html.includes('calque-neige-'));
   assert.ok(html.includes('day-mixed-layer'));
   assert.ok(html.includes('>1 cm</text>'));

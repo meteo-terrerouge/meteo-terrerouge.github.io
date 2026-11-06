@@ -1575,6 +1575,7 @@ button.horizon-period-main:hover{filter:brightness(.97)}
 /* Rain and snow scales and bars from the validated local preview. */
 .piaf-precipitation-view .day-timeline-slot .weather-icon { width: var(--piaf-weather-size, 72px); height: var(--piaf-weather-size, 72px); }
 .piaf-precipitation-view .piaf-weather-slot time { font-size: var(--piaf-weather-time-size, 11px); }
+.piaf-precipitation-view .piaf-weather-slot.chart-point { pointer-events: auto; cursor: crosshair; }
 .piaf-intensity-chart .piaf-rain-unit { fill: #34546b; font-weight: 700; }
 .piaf-precipitation-view .piaf-rain-bar { fill: var(--phase-color); }
 .piaf-precipitation-view .piaf-rain-bar { fill: url(#piaf-rain-intensity); }

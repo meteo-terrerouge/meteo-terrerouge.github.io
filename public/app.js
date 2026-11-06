@@ -2795,7 +2795,7 @@ function renderWeekForecast() {
       return dailyChartStates.get(date);
     };
     const days = dailyRowsTools.buildDailyRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
-      now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16, sunTimesForDate: sunTimes });
+      now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16, sunTimesForDate: sunTimes, piafForChart: true });
     const collapsible = siteProfile.dailyPresentation === "period-cards";
     const chartOptions = { timezone: siteProfile.timezone, iconMarkup: displayIcon, rainScale: dailyRowsTools.dailyRainScale(days),
       backgroundForTime: time => daylightColor(time, new Date(time)) };

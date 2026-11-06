@@ -42,8 +42,9 @@ test('PIAF humide et modèle sec avec composantes connues : pluie estimée sans 
     const before = structuredClone({ dashboard, forecast });
     const html = piafChartMarkup(forecast, { now, compact: true, dashboard });
     assert.ok(html.includes('piaf-rain-bar piaf-phase-rain'));
-    assert.ok(html.includes('phase estimée par AROME'));
-    assert.ok(html.includes('PIAF positif ; pluie estimée'));
+    assert.ok(html.includes('Intensité : Pluie faible'));
+    assert.ok(!html.includes('phase estimée par AROME'));
+    assert.ok(!html.includes('PIAF positif ; pluie estimée'));
     assert.ok(!html.includes('Nature indéterminée'));
     assert.ok(!html.includes('piaf-snow-bar'));
     assert.deepEqual({ dashboard, forecast }, before);
@@ -55,7 +56,7 @@ test('une vraie absence de nature reste inconnue, et un code verglaçant reste p
   const forecast = { rainSteps: [{ intervalStart: now, intervalEnd: now + hour, precipitation: 1 }] };
   const base = { time: new Date(now + hour).toISOString(), rain: 0, liquidRain: null, snowfall: null, temperature: 12, cloudCover: 90 };
   const missing = piafChartMarkup(forecast, { now, compact: true, dashboard: { arome: { hours: [base] } } });
-  assert.ok(missing.includes('Nature indéterminée (données de phase absentes)'));
+  assert.ok(missing.includes('Nature inconnue'));
   assert.ok(!missing.includes('piaf-snow-bar'));
   const freezing = piafChartMarkup(forecast, { now, compact: true, dashboard: { arome: { hours: [{ ...base, rain: 1, liquidRain: 1, snowfall: 0, weatherCode: 66 }] } } });
   assert.ok(freezing.includes('piaf-rain-bar piaf-phase-freezing'));
