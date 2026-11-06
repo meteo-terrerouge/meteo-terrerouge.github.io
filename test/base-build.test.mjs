@@ -15,6 +15,7 @@ test('la base se construit seule avec ses ressources locales, sans données ni m
   assert.ok(html.includes('Lieu à définir'));
   assert.ok(!html.includes('__SITE_'));
   assert.ok(!/https?:\/\//.test(html));
+  assert.ok(html.includes("connect-src 'self';"));
   const context = { window: {} };
   runInNewContext(await readFile(path.join(root, 'dist/runtime-config.js'), 'utf8'), context);
   const config = context.window.METEO_RUNTIME_CONFIG;
@@ -137,6 +138,10 @@ test('une installation serveur se construit sans GitHub et le site externe peut 
   assert.equal(context.window.METEO_RUNTIME_CONFIG.dataMode, 'server');
   assert.equal(context.window.METEO_RUNTIME_CONFIG.apiBase, site.apiBaseUrl);
   assert.equal(context.window.METEO_RUNTIME_CONFIG.management.repository, '');
+  const serverHtml = await readFile(path.join(root, 'dist/index.html'), 'utf8');
+  assert.ok(serverHtml.includes("connect-src 'self' https://api.example;"));
+  assert.equal(serverHtml.includes('__CONNECT_SOURCES__'), false);
+  assert.equal(/connect-src[^;]*\*/.test(serverHtml), false);
 
   site.apiMode = 'github-actions';
   site.githubRepository = 'example/example.github.io';
@@ -146,6 +151,8 @@ test('une installation serveur se construit sans GitHub et le site externe peut 
   runInNewContext(await readFile(path.join(root, 'dist/runtime-config.js'), 'utf8'), context);
   assert.equal(context.window.METEO_RUNTIME_CONFIG.dataMode, 'static');
   assert.equal(context.window.METEO_RUNTIME_CONFIG.apiBase, site.apiBaseUrl);
+  const externalHtml = await readFile(path.join(root, 'dist/index.html'), 'utf8');
+  assert.ok(externalHtml.includes("connect-src 'self' https://example.github.io;"));
   // Exercise the actual browser URL resolver for default, remote JSON and live API configurations.
   const script = (await readFile(path.join(root, 'public/app.js'), 'utf8')).split('let basicForecastTools = null;')[0];
   for (const [runtime, expected] of [

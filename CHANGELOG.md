@@ -19,3 +19,5 @@
 04/11/2026 19:18 — v0.031 — Dans le résumé de la frise 3 h, une goutte barrée remplace le texte « Pas de pluie » ; la limite horaire reste affichée si la couverture est incomplète.
 
 06/11/2026 11:24 — v0.032 — Choix de collecte des API météo entre GitHub Actions et serveur personnel ; hébergement du site indépendant, avec installation serveur sans compte GitHub. Nowcasting/radar et archives prévus comme deux modules serveur distincts.
+
+06/11/2026 13:20 — v0.033 — Autorisation de l’origine API configurée dans la politique de connexion du navigateur, pour charger les données depuis le serveur personnel ou une source JSON externe.

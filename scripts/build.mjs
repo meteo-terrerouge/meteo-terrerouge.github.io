@@ -26,12 +26,16 @@ const heading = escape(profile.name);
 const configured = Number.isFinite(profile.latitude) && Number.isFinite(profile.longitude);
 const coordinate = (value, positive, negative) => Math.abs(value).toLocaleString('fr-FR', { maximumFractionDigits: 6 }) + '° ' + (value >= 0 ? positive : negative);
 const location = configured ? coordinate(profile.latitude, 'N', 'S') + ' · ' + coordinate(profile.longitude, 'E', 'O') + (Number.isFinite(profile.headerAltitude) ? ' · ' + profile.headerAltitude.toLocaleString('fr-FR') + ' m' : '') : 'Lieu à définir';
+const apiOrigin = profile.apiBaseUrl ? new URL(profile.apiBaseUrl).origin : '';
+if (/[\s;'"<>]/.test(apiOrigin)) throw new Error('Origine API invalide pour la politique de connexion.');
+const connectSources = "'self'" + (apiOrigin ? ' ' + apiOrigin : '');
 await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
 await cp(path.join(root, 'public'), target, { recursive: true });
 for (const file of ['index.html', 'service-worker.js']) {
   const content = (await readFile(path.join(target, file), 'utf8'))
     .replaceAll('__RELEASE__', version).replaceAll('__ASSET_VERSION__', version.replaceAll('.', ''))
+    .replaceAll('__CONNECT_SOURCES__', () => escape(connectSources))
     .replaceAll('__SITE_TITLE__', () => escape(pageTitle)).replaceAll('__SITE_HEADING__', () => heading).replaceAll('__SITE_LOCATION__', () => location);
   await writeFile(path.join(target, file), content);
 }
