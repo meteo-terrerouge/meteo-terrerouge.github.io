@@ -132,7 +132,8 @@ export function weatherPictogram(sample, iconMarkup) {
     (valid(liquid) && liquid >= .01 ? liquid < 3 ? 1 : liquid < 8 ? 2 : liquid < 15 ? 3 : liquid < 30 ? 4 : 5 : 0))) : 0;
   const image = valid(cloudCover) ? iconMarkup({ ...sample, cloudCover: snow || freezing ? Math.max(35, cloudCover) : cloudCover,
     ...(snow || freezing || phase === 'unknown' ? { rain: 0, rainLevel: 0 } : { rainLevel }) }) : '<span class="day-icon-missing">—</span>';
-  const snowLevel = sample.snowfall >= 1 ? 3 : sample.snowfall >= .2 ? 2 : 1;
+  const snowLevel = [1, 2, 3].includes(sample.snowLevel) ? sample.snowLevel
+    : sample.snowfall >= 1 ? 3 : sample.snowfall >= .2 ? 2 : 1;
   // Each component of mixed precipitation keeps its own quantity and scale.
   // Reuse the existing vector layers, side by side under the same cloud.
   const mixedLayer = phase === 'mixed' ? `<svg class="day-snow-layer day-mixed-layer" viewBox="0 0 128 128" aria-hidden="true">${rainLevel ? `<image href="vendor/weather-variants/rain-${rainLevel}.svg" x="-13" y="26" width="96" height="96"/>` : ''}<image href="pictogrammes/calque-neige-${snowLevel}.svg" x="40" y="26" width="96" height="96"/></svg>` : '';

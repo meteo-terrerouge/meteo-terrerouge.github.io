@@ -33,3 +33,5 @@
 06/11/2026 18:25 — v0.038 — Neige représentée en blanc avec des congères sur les frises 24 h, comme sur la frise 3 h ; conservation des cumuls, unités et interruptions des précipitations.
 
 06/11/2026 18:38 — v0.039 — Couleurs d’avertissement fondées en priorité sur AROME puis ARPEGE dans leurs échéances couvertes ; Open-Meteo prend le relais uniquement sur les créneaux non couverts, sans mélange de cumuls et de probabilités entre modèles.
+
+07/11/2026 22:15 — v0.040 — Sur les cartes Tendance, un flocon jusqu’à 5 cm de neige par jour, deux au-delà de 5 cm et trois au-delà de 15 cm, y compris en pluie et neige mêlées. Les seuils s’appliquent au cumul avant arrondi.

@@ -2736,6 +2736,7 @@ function dailyRowDaySummaryMarkup(day, sourceRows = []) {
   const sample = dailyRowsTools.dailySummarySample(day);
   const format = (value, digits = 0) => value == null ? "—" : Number(value).toLocaleString("fr-FR", { maximumFractionDigits: digits });
   const snow = period.snowfall > 0;
+  const roundedSnowfall = Math.round(period.snowfall);
   const liquidKnown = period.liquidRain != null;
   const rain = liquidKnown ? period.liquidRain : period.rain;
   const rainLabel = liquidKnown || ["dry", "rain", "freezing"].includes(sample.phase) ? "Pluie" : "Précip.";
@@ -2745,11 +2746,12 @@ function dailyRowDaySummaryMarkup(day, sourceRows = []) {
     period.estimated ? "Part estimée au prorata" : "", ...periodSourceDetails(sources, "rain")].filter(Boolean).join("\n");
   const rainVolume = rain == null || rain >= .01 - 1e-9
     ? '<span class="daily-period-rain-volume" title="' + escapeText(rainTitle) + '"><small><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.rain + '</svg>' + rainLabel + '</small><strong>' + escapeText(rainAmount + rainSuffix) + '</strong></span>' : "";
-  const snowVolume = snow ? '<span class="daily-period-rain-volume daily-period-snow-volume" title="Neige fraîche estimée de la journée ; pas une hauteur au sol"><small><svg class="forecast-snowflake" viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.snow + '</svg>Neige</small><strong>' + (Math.round(period.snowfall) || "&lt; 1") + ' cm' + escapeText(rainSuffix) + '</strong></span>' : "";
+  const snowVolume = snow ? '<span class="daily-period-rain-volume daily-period-snow-volume" title="Neige fraîche estimée de la journée ; pas une hauteur au sol"><small><svg class="forecast-snowflake" viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.snow + '</svg>Neige</small><strong>' + (roundedSnowfall || "&lt; 1") + ' cm' + escapeText(rainSuffix) + '</strong></span>' : "";
   const { hazardMarkup, gustVolume } = forecastPeriodHighlights({ storm: period.storm, gust: period.windGust, sources });
   const iconRain = ["rain", "mixed", "freezing"].includes(sample.phase) ? rain : 0;
+  const snowLevel = period.snowfall > 15 + 1e-9 ? 3 : period.snowfall > 5 + 1e-9 ? 2 : 1;
   const icon = dailyRowsTools.weatherPictogram({ ...sample, stormSignal: false,
-    rainLevel: rainPictogramStep(iconRain), ...(["snow", "snow-unknown", "mixed"].includes(sample.phase) ? { snowfall: period.snowfall } : {}) }, displayIcon);
+    rainLevel: rainPictogramStep(iconRain), snowLevel }, displayIcon);
   return '<section class="daily-trend-summary" aria-label="Synthèse de la journée"><div class="daily-trend-overview"><span class="daily-period-icon weather-icon">' + icon + hazardMarkup
     + '</span><span class="daily-period-values"><span class="daily-period-temperatures"><span><small>Max.</small><strong>' + format(period.temperatureMax) + '°</strong></span><span><small>Min.</small><b>' + format(period.temperatureMin)
     + '°</b></span></span><span class="daily-period-metrics">' + rainVolume + snowVolume + gustVolume + '</span></span></div></section>';

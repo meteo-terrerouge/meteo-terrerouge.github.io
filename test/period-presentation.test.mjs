@@ -206,6 +206,23 @@ test('la tendance résume les 25 heures du jour civil, sans la nuit suivante ni 
   for (const text of ['data-slot-key', '<details', 'Matin', 'Après-midi', 'Soir', 'Nuit']) assert.ok(!html.includes(text), text);
 });
 
+test('la synthèse quotidienne ajoute des flocons au-delà de 5 et 15 cm de neige', () => {
+  const start = Date.parse('2026-10-26T00:00:00+01:00');
+  const cases = [[.25, '&lt; 1', 1], [1, '1', 1], [5, '5', 1], [5.01, '5', 2], [15, '15', 2], [15.01, '15', 3]];
+  for (const [total, amount, level] of cases) {
+    const dashboard = { openMeteo: { hours: Array.from({ length: 25 }, (_, i) => ({
+      time: new Date(start + i * HOUR).toISOString(), rain: (.7 + total) / 24,
+      liquidRain: .7 / 24, snowfall: total / 24, cloudCover: 70, weatherCode: 71
+    })) } };
+    const day = dailyRowsTools.buildDailyRows({ dashboard, now }).find(day => day.date === '2026-10-26');
+    const html = engine(dashboard).dailyRowDaySummaryMarkup(day);
+    assert.ok(html.includes('<strong>' + amount + ' cm</strong>'));
+    assert.ok(html.includes('href="pictogrammes/calque-neige-' + level + '.svg"'), total + ' cm');
+    assert.ok(html.includes('<strong>0,7 mm</strong>'));
+    assert.ok(html.includes('href="vendor/weather-variants/rain-1.svg"'));
+  }
+});
+
 test('la synthèse quotidienne conserve les précipitations inconnues et le seuil des rafales', () => {
   for (const gust of [49, 50]) {
     const dashboard = { openMeteo: { hours: Array.from({ length: 49 }, (_, i) => ({
