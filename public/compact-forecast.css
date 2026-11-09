@@ -35,9 +35,7 @@
   .forecast-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 4px; min-height: 43px; font-size: .7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.12; }
   .compact-forecast .card-metrics { margin: 0 8px; padding: 7px 0 8px; border-top: 1px solid #e1eaee; }
   .forecast-metrics :is(.min, .max, .gust-speed, .rain-amount) { font-size: calc(1em + .02rem); }
-  .forecast-metrics :is(.rain-reading, .wind-reading):has(.alert-value) {
-    padding: 2px 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px currentColor;
-  }
+  .forecast-metrics .alert-value { font-size: calc(1.3 * (1em + .02rem)); font-weight: 900; }
   .compact-forecast .card-metrics:has(.gust-total) { margin-inline: 5px; gap: 2px; }
   .forecast-metrics :is(.temperatures, .rain-total) { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
   .forecast-metrics .temperatures { grid-column: 1; justify-self: start; }

@@ -63,3 +63,5 @@
 09/11/2026 21:15 — v0.053 — Les chiffres encadrés des vignettes et de la frise 3 h ont la même taille et la même graisse que les autres valeurs.
 
 09/11/2026 21:33 — v0.054 — Infobulles des précipitations de la frise 24 h ramenées au créneau et à une ligne par type de précipitation.
+
+09/11/2026 21:42 — v0.055 — Valeurs d’alerte 30 % plus grandes et en gras sur les vignettes et la frise 3 h, sans encadrement.
