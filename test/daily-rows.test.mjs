@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDailyRows, dailyRainBars, dailyRainDisplayBars, dailyRainScale, dailyCurveSamples, dailyRowsMarkup, localDateKey, createDailyChartState, dailyChartMarkup, dailyChartSize, dailyHourlyWidth, dailyTimeAxis, dailySummarySample, dailyPeriodSummary, dailyDataUpdateStatus, dailyTimeGroups, piafChartMarkup, precipitationPhase, precipitationCoverageSuffix } from '../public/daily-rows.js';
+import { buildDailyRows, dailyRainBars, dailyRainDisplayBars, dailyRainScale, dailyCurveSamples, dailyRowsMarkup, localDateKey, createDailyChartState, dailyChartMarkup, dailyChartSize, dailyHourlyWidth, dailyTimeAxis, dailySummarySample, dailyPeriodSummary, dailyDataUpdateStatus, dailyTimeGroups, piafChartMarkup, precipitationPhase, precipitationCoverageSuffix, windSummaryMarkup } from '../public/daily-rows.js';
 import { nativeSnowAmounts } from '../weather/precipitation.mjs';
 import { createForecastCollectors } from '../weather/collectors.mjs';
 import { prepareBasicForecast } from '../public/forecast-core.js';
@@ -26,9 +26,14 @@ test('la frise 3 h colore uniquement les créneaux concernés par un avertisseme
     precipitation: rate / 4
   }));
   const html = piafChartMarkup({ rainSteps }, { now, compact: true, width: 1200, dashboard: { arome: { hours } },
-    alertForSlot: ({ rainRate }) => ({ 12: 'yellow', 24: 'orange', 48: 'red' })[rainRate] || '' });
+    alertForSlot: ({ rainRate }) => {
+      const tone = { 12: 'yellow', 24: 'orange', 48: 'red' }[rainRate];
+      return tone ? { tone, causes: { rainRate } } : {};
+    } });
   assert.deepEqual([...html.matchAll(/class="piaf-slot-alert piaf-slot-alert-([^"]+)"/g)].map(match => match[1]), ['yellow', 'orange', 'red']);
   assert.match(html, /Avertissement du bulletin : rouge/);
+  assert.match(html, /Pic de pluie<\/small><span class="rain-reading"><span class="rain-amount alert-value">48<\/span><span class="rain-unit">mm\/h/);
+  assert.doesNotMatch(html, /three-hour-view-controls|day-chart-toggle/);
 });
 
 test('les pictogrammes 3 h et 24 h reprennent les seuils d’intensité des Tatins', () => {
@@ -93,6 +98,14 @@ test('un seul diagramme pluie/neige : mm équivalent eau pour la hauteur, cm pou
   assert.ok(html.includes('pas une hauteur de neige au sol'));
   const heights = [...html.matchAll(/height="([^"]+)" class="day-combined-rain"/g)].map(match => +match[1]);
   assert.equal(new Set(heights).size, 1, 'même intensité eau => même hauteur pour pluie, neige et mélange');
+  const compact = dailyChartMarkup(day, { width: 1800, compactRain: true });
+  const details = [...compact.matchAll(/data-rain-hours="[^"]+"[^>]*data-tooltip="([^"]+)"/g)].map(match => match[1].split('\n'));
+  assert.ok(details.every(([range]) => /^\d{2}:\d{2} – \d{2}:\d{2}$/.test(range)));
+  assert.deepEqual(details.map(([, ...amounts]) => amounts), [
+    ['Pluie : 1 mm · 1 mm/h'],
+    ['Neige estimée : 1 cm · 0,7 cm/h'],
+    ['Pluie : 0,5 mm · 0,5 mm/h', 'Neige estimée : &lt; 1 cm · 0,35 cm/h'],
+  ]);
   const summary = dailyRowsMarkup([day], { now });
   assert.ok(summary.includes('>1 cm (jusqu’à 12 h)</strong>'));
   assert.ok(summary.includes('1,5 mm (jusqu’à 12 h)'));
@@ -1232,14 +1245,13 @@ test('frise compacte : min/max de la source prioritaire, cumul PIAF conservé et
   // The single PIAF interval crosses all three model phase intervals.
   const forecast = { rainSteps: [{ intervalStart: now, intervalEnd: now + 3 * HOUR, precipitation: 3 }] };
   const html = piafChartMarkup(forecast, { now, dashboard, compact: true });
-  assert.match(html, /<small>Min\.<\/small><b>5°<\/b>/);
-  assert.match(html, /<small>Max\.<\/small><b>15°<\/b>/);
-  assert.match(html, /<small>Cumul<\/small><b>3 mm<\/b>/);
+  assert.match(html, /class="min" aria-hidden="true">5°<\/span><span class="temperature-divider" aria-hidden="true">\/<\/span><span class="max" aria-hidden="true">15°/);
+  assert.match(html, /class="piaf-summary-label">Cumul<svg class="rain-drop"[^>]*>[^\n]*?<\/svg> :<\/small><span class="rain-amount">3<\/span><span class="rain-unit">mm<\/span>/);
   assert.ok(!html.includes('piaf-temperature-line'));
   assert.ok(!html.includes('piaf-temperature-point'));
   assert.ok(html.includes('piaf-rain-bar piaf-phase-rain'));
   assert.ok(html.includes('piaf-snow-bar'));
-  assert.ok(html.includes('<small>Neige</small>'));
+  assert.match(html, /class="piaf-precipitation-item piaf-summary-snow"[^>]*>[^\n]*class="rain-unit">cm<\/span>/);
   assert.ok(html.includes('Neige fraîche estimée par AROME'));
   assert.ok(!html.includes('Précip. PIAF mm/h équiv. eau'));
   assert.ok(!html.includes('class="day-source"'));
@@ -1256,13 +1268,13 @@ test('frise compacte : un cumul sec connu, un cumul partiel et une absence PIAF 
   assert.ok(!dry.includes('<b>Pas de pluie'));
   assert.ok(!dry.includes('piaf-daylight'));
   assert.match(piafChartMarkup(step(HOUR, 0), options), /aria-label="Pas de pluie \(jusqu’à 1 h\)"/);
-  assert.match(piafChartMarkup(step(HOUR, 0), options), /<b>\(jusqu’à 1 h\)<\/b>/);
+  assert.match(piafChartMarkup(step(HOUR, 0), options), /<small class="piaf-summary-coverage">\(jusqu’à 1 h\)<\/small>/);
   assert.match(piafChartMarkup(step(HOUR, 0), options), /couverture partielle/);
   assert.ok(!dry.includes('piaf-intensity-line'));
   const partial = piafChartMarkup(step(HOUR, .25), options);
-  assert.match(partial, /<small>Cumul<\/small><b>0,25 mm \(jusqu’à 1 h\)<\/b>/);
+  assert.match(partial, /class="rain-amount">0,25<\/span><span class="rain-unit">mm<\/span><small class="piaf-summary-coverage">\(jusqu’à 1 h\)<\/small>/);
   const missing = piafChartMarkup(null, options);
-  assert.match(missing, /<small>Cumul<\/small><b>— mm<\/b>/);
+  assert.match(missing, /class="rain-amount">—<\/span><span class="rain-unit">mm<\/span>/);
   assert.ok(missing.includes('PIAF indisponibles'));
   assert.ok(!missing.includes('piaf-dry-rain-slash'));
   assert.ok(!missing.includes('piaf-intensity-line'));
@@ -1289,12 +1301,19 @@ test('frise 3 h : vent et rafales restent prioritaires, avec signal d’orage su
     hour(now + 3 * HOUR, { windSpeed: 18, windGust: 35 }), hour(now + 4 * HOUR, { windSpeed: 120, windGust: 160 })] },
     openMeteo: { hours: Array.from({ length: 5 }, (_, i) => hour(now + i * HOUR, { windSpeed: 200, windGust: 250 })) } };
   let hazards;
-  const html = piafChartMarkup(null, { now, compact: true, dashboard, hazardsMarkup: period => { hazards = period; return '<span>résumé vent et orage</span>'; } });
+  const hazardsMarkup = (period, causes) => {
+    hazards = period;
+    return windSummaryMarkup(period.windSpeed, period.windGust, causes);
+  };
+  const html = piafChartMarkup(null, { now, compact: true, dashboard, hazardsMarkup });
   assert.deepEqual(hazards, { windSpeed: 22, windGust: 40, storm: true });
-  assert.ok(html.includes('résumé vent et orage'));
-  let updates;
-  piafChartMarkup(null, { now, compact: true, dashboard, updateMarkup: data => { updates = data.sourceUpdates; return ''; } });
-  assert.ok(updates.some(update => update.name === 'PIAF'), 'une absence PIAF doit peser dans son indicateur');
+  assert.doesNotMatch(html, /class="gust-total"/);
+  assert.match(html, /Précip\. PIAF indisponibles/);
+  dashboard.arome.hours[1].windGust = 49;
+  assert.doesNotMatch(piafChartMarkup(null, { now, compact: true, dashboard, hazardsMarkup }), /class="gust-total"/);
+  dashboard.arome.hours[1].windGust = 50;
+  const notable = piafChartMarkup(null, { now, compact: true, dashboard, hazardsMarkup });
+  assert.match(notable, /class="rain-total"[\s\S]*?class="gust-total"[\s\S]*?Vent moyen jusqu’à 22 km\/h[\s\S]*?Rafales jusqu’à 50 km\/h/);
 });
 
 test('la fraîcheur PIAF emploie ses seuils courts et les jours lointains placent la date dans le titre', () => {
@@ -1377,8 +1396,8 @@ test('frise 3 h : neige en cm/h sur son échelle propre sans conversion des quan
   assert.ok(!html.includes('class="piaf-rain-bar'), 'pas de barres PIAF superposées à la neige');
   assert.ok(!html.includes('piaf-snow-flakes'));
   assert.ok(html.includes('piaf-snow-cap'));
-  assert.ok(html.includes('<b>3 mm (jusqu’à'));
-  assert.ok(html.includes('<b>2 cm'));
+  assert.match(html, /class="rain-amount">3<\/span><span class="rain-unit">mm<\/span><small class="piaf-summary-coverage">\(jusqu’à [^<]+\)<\/small>/);
+  assert.match(html, /class="rain-amount">2<\/span><span class="rain-unit">cm<\/span>/);
   assert.deepEqual({dashboard,forecast},before);
   const unknown=piafChartMarkup(forecast,{now,compact:true,dashboard:{arome:{hours:[hour(now+HOUR,{rain:7,liquidRain:null,snowfall:null,weatherCode:73})]}}});
   assert.ok(!unknown.includes('piaf-snow-scale'), 'aucune échelle en cm déduite d’un code météo ou de PIAF seuls');
@@ -1414,7 +1433,7 @@ test('neige : mêmes petits espacements que la pluie et congères sur les seuls 
   assert.equal(flakes.length,bars.length,'un flocon sur chaque barre neige');
   assert.ok(new Set(flakes.map(match=>match[1])).size>20,'hauteurs irrégulières');
   assert.equal(piafChartMarkup(forecast,{now,compact:true,width:900,dashboard,showSnowFlakes:true}),html,'décor stable lors du rafraîchissement');
-  assert.ok(html.includes('<b>4 cm'));
+  assert.match(html, /class="rain-amount">4<\/span><span class="rain-unit">cm<\/span>/);
   assert.deepEqual({dashboard,forecast},before);
 });
 

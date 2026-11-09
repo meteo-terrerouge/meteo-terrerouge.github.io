@@ -29,24 +29,48 @@
   .compact-forecast .pictogram { position: relative; z-index: 2; display: block; width: calc(72px * var(--pictogram-scale)); height: calc(65px * var(--pictogram-scale)); cursor: pointer; }
   .compact-forecast .card-transition .pictogram { width: calc(56px * var(--pictogram-scale)); height: calc(52px * var(--pictogram-scale)); }
   .compact-forecast .pictogram img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .compact-forecast .pictogram .day-mixed-layer { position: absolute; inset: 0; width: 100%; height: 100%; }
   .compact-forecast .pictogram .rain-layer { transform: translateY(9%); }
   .compact-forecast .pictogram .wind-layer { transform: translateY(12%); }
-  .compact-forecast .card-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 4px; min-height: 43px; margin: 0 8px; padding: 7px 0 8px; border-top: 1px solid #e1eaee; font-size: .7rem; font-weight: 700; line-height: 1.12; }
-  .compact-forecast .card-metrics :is(.min, .max, .gust-speed, .rain-amount) { font-size: calc(1em + .02rem); }
+  .forecast-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 4px; min-height: 43px; font-size: .7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.12; }
+  .compact-forecast .card-metrics { margin: 0 8px; padding: 7px 0 8px; border-top: 1px solid #e1eaee; }
+  .forecast-metrics :is(.min, .max, .gust-speed, .rain-amount) { font-size: calc(1em + .02rem); }
+  .forecast-metrics :is(.rain-reading, .wind-reading):has(.alert-value) {
+    padding: 2px 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px currentColor;
+  }
   .compact-forecast .card-metrics:has(.gust-total) { margin-inline: 5px; gap: 2px; }
-  .compact-forecast .temperatures, .compact-forecast .rain-total { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
-  .compact-forecast .temperatures { grid-column: 1; justify-self: start; }
-  .compact-forecast .temperature-values { display: flex; align-items: baseline; gap: 3px; }
-  .compact-forecast .rain-total { position: relative; z-index: 2; grid-column: 3; justify-self: end; max-width: 100%; color: #21617e; cursor: pointer; }
-  .compact-forecast .rain-drop { width: 14px; height: 14px; flex: none; fill: #258bc0; }
-  .compact-forecast .rain-reading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; column-gap: .18em; min-width: min-content; }
-  .compact-forecast .rain-unit { font-size: .8em; font-weight: 600; }
+  .forecast-metrics :is(.temperatures, .rain-total) { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
+  .forecast-metrics .temperatures { grid-column: 1; justify-self: start; }
+  .forecast-metrics .temperature-values { display: flex; align-items: baseline; gap: 3px; }
+  .forecast-metrics .rain-total { position: relative; z-index: 2; grid-column: 3; justify-self: end; max-width: 100%; color: #21617e; }
+  .compact-forecast .rain-total { cursor: pointer; }
+  .forecast-metrics .rain-drop { width: 14px; height: 14px; flex: none; fill: #258bc0; }
+  .forecast-metrics .rain-reading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; column-gap: .18em; min-width: min-content; }
+  .forecast-metrics .rain-unit { font-size: .8em; font-weight: 600; }
   .compact-forecast .rain-total > .trend-arrow { flex: none; }
-  .compact-forecast .gust-total { position: relative; z-index: 2; grid-column: 2; display: flex; align-items: center; gap: 2px; color: #6f438a; white-space: nowrap; cursor: pointer; }
-  .compact-forecast .gust-unit { display: grid; text-align: center; font-size: .53em; font-weight: 600; line-height: .98; }
-  .compact-forecast .temperature-divider { color: #687e8b; font-weight: 500; }
-  .compact-forecast .min { color: #216da1; }
-  .compact-forecast .max { color: #a85015; }
+  .forecast-metrics .gust-total { position: relative; z-index: 2; grid-column: 2; display: flex; align-items: center; gap: 2px; color: #6f438a; white-space: nowrap; }
+  .compact-forecast .gust-total { cursor: pointer; }
+  .forecast-metrics .wind-reading { display: flex; align-items: center; gap: 2px; }
+  .forecast-metrics .wind-mean { color: #12664d; }
+  .forecast-metrics .gust-unit { display: grid; text-align: center; font-size: .53em; font-weight: 600; line-height: .98; }
+  .forecast-metrics :is(.temperature-divider, .wind-divider) { color: #687e8b; font-weight: 500; }
+  .forecast-metrics .min { color: #216da1; }
+  .forecast-metrics .max { color: #a85015; }
+  .piaf-three-hour-summary { display: flex; flex-wrap: wrap; gap: 6px clamp(14px, 2.5vw, 34px); padding: 6px 12px; border-bottom: 1px solid #edf2f4; font-size: .91rem; }
+  .piaf-three-hour-summary .rain-total { flex-wrap: wrap; gap: 4px 12px; }
+  .piaf-precipitation-item { display: grid; justify-items: end; gap: 2px; }
+  .piaf-summary-note { color: inherit; font-size: .8em; font-weight: 600; }
+  .piaf-precipitation-item .rain-reading { column-gap: .3em; }
+  .piaf-precipitation-item .rain-reading:has(.piaf-summary-label) > :is(.piaf-summary-label, .rain-unit) {
+    color: inherit; font-size: calc(1em + .02rem); font-weight: inherit;
+  }
+  .piaf-summary-label { display: inline-flex; align-items: center; gap: .2em; }
+  .piaf-summary-label .rain-drop { width: 1em; height: 1em; fill: currentColor; }
+  .piaf-summary-coverage { color: inherit; font-size: .65em; font-weight: 500; }
+  .piaf-summary-snow { color: #167d92; }
+  @media (max-width: 600px) {
+    .piaf-three-hour-summary { padding-inline: 7px; font-size: .8rem; }
+  }
   .compact-forecast dialog { width: min(1880px, calc(100% - 28px)); max-height: calc(100% - 28px); padding: 0; border: 1px solid #c8d7de; border-radius: 14px; color: inherit; }
   .compact-forecast dialog::backdrop { background: #193a4e66; }
   .compact-forecast .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 8px 14px; border-bottom: 1px solid #dbe5e9; background: #eef4f6; }
@@ -62,7 +86,7 @@
     .compact-forecast .rain-drop { width: 12px; height: 12px; }
     .compact-forecast .card-metrics:has(.gust-total) { margin-inline: 3px; gap: 2px; }
     .compact-forecast .card-metrics:has(.gust-total) .rain-drop { width: 10px; height: 10px; }
-    .compact-forecast .gust-total { gap: 1px; }
+    .compact-forecast .wind-reading { gap: 1px; }
   }
   @container (max-width: 137px) {
     .compact-forecast .card-metrics { font-size: .63rem; }

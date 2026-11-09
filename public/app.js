@@ -12,7 +12,6 @@ let dailyRowsTools = null;
 let compactForecastTools = null;
 const dailyChartStates = new Map();
 let dailyChartsResizeObserver = null;
-let threeHourDiagramOpen = true;
 const dailyRowsReady = dailyRowsLayout ? Promise.all([import(dailyModuleUrl("daily-rows.js")),
   compactForecastLayout ? import(dailyModuleUrl("compact-forecast.js")) : null])
   .then(([daily, compact]) => { dailyRowsTools = daily; compactForecastTools = compact; renderWeekForecast(); }) : null;
@@ -126,30 +125,49 @@ const shortTermWindIntensityLevel = (meanWind, gust) => {
   return Math.max(meanWindIntensityLevel(meanSpeed), gustIntensityLevel(gustSpeed));
 };
 
-function forecastSourceAlertTone({ wind = 0, gust = 0, probability = 0, rain = 0, rain3h = 0, rainRate = 0, deterministic = false, stormRainOverlap = false, stormRainWindOverlap = false } = {}) {
+function forecastSourceAlertTone({ wind = 0, gust = 0, probability = 0, rain = 0, rain3h = 0, rainRate = 0, deterministic = false, stormRainOverlap = false, stormRainWindOverlap = false, stormWindCauses } = {}) {
   const windValue = Math.max(0, Number(wind) || 0);
   const gustValue = Math.max(0, Number(gust) || 0);
   const probabilityValue = Math.max(0, Number(probability) || 0);
   const rainValue = Math.max(0, Number(rain) || 0);
   const rain3hValue = Math.max(0, Number(rain3h) || 0);
-  const rainAttention = (deterministic || probabilityValue >= 70) && (rainRate >= 10 || rain3hValue >= 10 || rainValue >= 15);
-  const rainSerious = (deterministic || probabilityValue >= 70) && (rainRate >= 20 || rain3hValue >= 20 || rainValue >= 30);
-  const rainAlert = (deterministic || probabilityValue >= 80) && (rainRate >= 40 || rain3hValue >= 40 || rainValue >= 60);
-  const windAttention = windValue >= 40 || gustValue >= 60;
-  const windSerious = windValue >= 60 || gustValue >= 80;
-  const windAlert = windValue >= 80 || gustValue >= 100;
-  if (windAlert || rainAlert || (windSerious && rainSerious)) return "red";
-  if (windSerious || rainSerious || (stormRainOverlap && rainAttention)) return "orange";
-  if (windAttention || rainAttention || stormRainWindOverlap) return "yellow";
-  return "";
+  const rainCauses = (rateThreshold, amountThreshold, minimumProbability = 70) => {
+    if (!deterministic && probabilityValue < minimumProbability) return {};
+    return {
+      ...(rainRate >= rateThreshold && { rainRate }),
+      ...(rain3hValue >= rateThreshold && { rain3h: rain3hValue }),
+      ...(rainValue >= amountThreshold && { rain: rainValue })
+    };
+  };
+  const windCauses = (windThreshold, gustThreshold) => ({
+    ...(windValue >= windThreshold && { wind: windValue }),
+    ...(gustValue >= gustThreshold && { gust: gustValue })
+  });
+  const yellowRain = rainCauses(10, 15);
+  const yellow = { ...(stormRainWindOverlap && { rain: rainValue, ...(stormWindCauses ?? windCauses(30, 50)) }),
+    ...yellowRain, ...windCauses(40, 60) };
+  const orangeRain = rainCauses(20, 30);
+  const orangeWind = windCauses(60, 80);
+  const red = { ...rainCauses(40, 60, 80), ...windCauses(80, 100) };
+  if (Object.keys(red).length || (Object.keys(orangeRain).length && Object.keys(orangeWind).length)) {
+    return { tone: "red", causes: yellow };
+  }
+  const orange = { ...(stormRainOverlap && yellowRain), ...orangeRain, ...orangeWind };
+  if (Object.keys(orange).length) return { tone: "orange", causes: yellow };
+  return { tone: Object.keys(yellow).length ? "yellow" : "", causes: yellow };
 }
 
-function forecastSlotAlertTone(sources = [], initialTone = "") {
+function forecastSlotAlertTone(sources = [], initialTone = "", detailed = false) {
   const ranks = { "": 0, yellow: 1, orange: 2, red: 3 };
-  return (Array.isArray(sources) ? sources : [sources]).reduce((selected, source) => {
-    const tone = forecastSourceAlertTone(source);
-    return ranks[tone] > ranks[selected] ? tone : selected;
-  }, initialTone);
+  const result = { tone: initialTone, causes: initialTone ? { rain: 0 } : {} };
+  for (const source of Array.isArray(sources) ? sources : [sources]) {
+    const { tone, causes } = forecastSourceAlertTone(source);
+    if (ranks[tone] > ranks[result.tone]) result.tone = tone;
+    for (const [metric, value] of Object.entries(causes)) {
+      result.causes[metric] = Math.max(result.causes[metric] ?? 0, value);
+    }
+  }
+  return detailed ? result : result.tone;
 }
 
 function graphIconMarkup(className) {
@@ -2570,7 +2588,7 @@ function renderTestingDailyForecast() {
     const stormRisk = weekStormRisk(dateKey);
     const stormStep = hasStorm ? Math.max(3, stormRisk.level) : 0;
     const rainVolume = !hideRain && rain >= .1
-      ? '<span class="daily-period-rain-volume" role="img" aria-label="Cumul de pluie ' + escapeText(rainAmountText(rain)) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/></svg><strong>' + escapeText(rainRangeText) + '</strong></span>'
+      ? '<span class="daily-period-rain-volume" title="Cumul de pluie ' + escapeText(rainAmountText(rain)) + '"><strong>' + escapeText(rainRangeText) + '</strong></span>'
       : "";
     const { hazardMarkup, gustVolume } = forecastPeriodHighlights({ storm: hasStorm, gust, sources: sourcePeriods });
     const notable = forecastPeriodSummaryText({ ...(period || {}), precipitationSum: hideRain ? 0 : rain, precipitationProbabilityMax: hideRain ? 0 : rainProbability, storm: hasStorm });
@@ -2679,15 +2697,10 @@ function dailyDataUpdateMarkup(day) {
   return '<span class="daily-confidence-indicator daily-data-refresh ' + tone + '" role="img" aria-label="' + escapeText(title) + '" title="' + escapeText(title) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 11.6-1L20 9M4 15l2.4 3A7 7 0 0 0 18 17"/></svg></span>';
 }
 
-function threeHourHazardsMarkup(period) {
-  const parts = [];
-  if (meanWindIntensityLevel(period.windSpeed) >= 3) {
-    const label = ["", "", "", "modéré", "soutenu", "fort"][meanWindIntensityLevel(period.windSpeed)];
-    parts.push("Vent moyen " + label + " · " + Math.round(period.windSpeed) + " km/h");
-  }
-  if (gustIntensityLevel(period.windGust) >= 2) parts.push(shortTermGustLabel(gustIntensityLevel(period.windGust)) + " · " + Math.round(period.windGust) + " km/h");
-  if (period.storm) parts.push("Orage possible");
-  return parts.length ? '<span class="piaf-summary-hazards">' + parts.map(part => '<b>' + escapeText(part) + '</b>').join('<span aria-hidden="true"> · </span>') + '</span>' : "";
+function threeHourHazardsMarkup(period, causes) {
+  const wind = causes.wind ?? period.windSpeed;
+  const gust = causes.gust ?? period.windGust;
+  return dailyRowsTools.windSummaryMarkup(wind, gust, causes);
 }
 
 function dailyRowPeriodsMarkup(day, state, sourceRows = []) {
@@ -2724,7 +2737,7 @@ function dailyRowPeriodsMarkup(day, state, sourceRows = []) {
       rainLevel: iconRain >= .01 ? rainPictogramStep(iconRain) : 0,
       cloudCover: period.cloudCover ?? (period.storm ? 100 : null), stormSignal: false }, displayIcon);
     const temperatures = '<span class="daily-period-temperatures"><span><small>Max.</small><strong>' + format(period.temperatureMax) + '°</strong></span><span><small>Min.</small><b>' + format(period.temperatureMin) + '°</b></span></span>';
-    const rainVolume = rain >= .01 ? '<span class="daily-period-rain-volume"><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.rain + '</svg><strong>' + escapeText(rainAmount) + '</strong></span>' : "";
+    const rainVolume = rain >= .01 ? '<span class="daily-period-rain-volume"><strong>' + escapeText(rainAmount) + '</strong></span>' : "";
     const title = slot.key === "night" ? "Nuit du " + nightPeriodDateFormat.format(new Date(day.date + "T12:00:00")) + " au " + nightPeriodDateFormat.format(new Date(shiftForecastDateKey(day.date, 1) + "T12:00:00")) + " matin" : "";
     const notable = forecastPeriodSummaryText({ precipitationSum: rain, precipitationProbabilityMax: probability.average,
       storm: period.storm, weatherCode, windGustMax: period.windGust });
@@ -2749,8 +2762,8 @@ function dailyRowDaySummaryMarkup(day, sourceRows = []) {
   const rainTitle = [liquidKnown ? "Cumul de pluie de la journée" : "Précipitations en équivalent eau ; répartition pluie/neige inconnue",
     period.estimated ? "Part estimée au prorata" : "", ...periodSourceDetails(sources, "rain")].filter(Boolean).join("\n");
   const rainVolume = rain == null || rain >= .01 - 1e-9
-    ? '<span class="daily-period-rain-volume" title="' + escapeText(rainTitle) + '"><small><svg viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.rain + '</svg>' + rainLabel + '</small><strong>' + escapeText(rainAmount + rainSuffix) + '</strong></span>' : "";
-  const snowVolume = snow ? '<span class="daily-period-rain-volume daily-period-snow-volume" title="Neige fraîche estimée de la journée ; pas une hauteur au sol"><small><svg class="forecast-snowflake" viewBox="0 0 24 24" aria-hidden="true">' + periodMetricIcons.snow + '</svg>Neige</small><strong>' + (roundedSnowfall || "&lt; 1") + ' cm' + escapeText(rainSuffix) + '</strong></span>' : "";
+    ? '<span class="daily-period-rain-volume" title="' + escapeText(rainTitle) + '"><small>' + rainLabel + '</small><strong>' + escapeText(rainAmount + rainSuffix) + '</strong></span>' : "";
+  const snowVolume = snow ? '<span class="daily-period-rain-volume daily-period-snow-volume" title="Neige fraîche estimée de la journée ; pas une hauteur au sol"><small>Neige</small><strong>' + (roundedSnowfall || "&lt; 1") + ' cm' + escapeText(rainSuffix) + '</strong></span>' : "";
   const { hazardMarkup, gustVolume } = forecastPeriodHighlights({ storm: period.storm, gust: period.windGust, sources });
   const iconRain = ["rain", "mixed", "freezing"].includes(sample.phase) ? rain : 0;
   const snowLevel = period.snowfall > 15 + 1e-9 ? 3 : period.snowfall > 5 + 1e-9 ? 2 : 1;
@@ -2867,7 +2880,7 @@ function renderCompactWeek(target, days, { now, dashboard, week, sourceRows, cha
   target.classList.add("compact-forecast");
   target.innerHTML = compactForecastTools.compactCardsMarkup(days, {
     now, dashboard, week, timezone: chartOptions.timezone, siteId: siteProfile.id, alertSources: sourceRows,
-    forecastSlotAlertTone, ...dailyRowsTools
+    forecastSlotAlertTone, rainPictogramStep, ...dailyRowsTools
   });
 
   let dialog = $("compact-forecast-dialog");
@@ -2954,7 +2967,7 @@ function renderWeekForecast() {
       return forecastSlotAlertTone([
         ...modelAlerts.map(item => ({ ...item, wind: item.windSpeed, gust: item.windGust })),
         { rainRate, deterministic: true }
-      ]);
+      ], "", true);
     };
     const piafTarget = $("piaf-three-hour-chart");
     if (piafTarget) {
@@ -2962,19 +2975,7 @@ function renderWeekForecast() {
         const width = Math.max(200, piafTarget.clientWidth - 2);
         piafTarget._dailyChartWidth = Math.round(piafTarget.clientWidth);
         piafTarget.innerHTML = dailyRowsTools.piafChartMarkup(currentNowcast(), { ...chartOptions, compact: collapsible, compactRain: compactForecastLayout, now: appNow(), width,
-          dashboard: latestForecastData || {}, week: latestMeteoFranceWeek, updateMarkup: dailyDataUpdateMarkup,
-          chartIconMarkup: graphIconMarkup("daily-day-open-icon"), hazardsMarkup: threeHourHazardsMarkup, alertForSlot });
-        const controls = piafTarget.querySelector(".three-hour-view-controls");
-        if (controls) {
-          const heading = document.querySelector(".three-hour-card > .forecast-day-header");
-          heading.querySelector(".three-hour-view-controls")?.remove();
-          heading.append(controls);
-          const diagram = piafTarget.querySelector(".piaf-diagram");
-          const button = controls.querySelector("button");
-          const sync = () => { diagram.hidden = !threeHourDiagramOpen; button.setAttribute("aria-expanded", String(threeHourDiagramOpen)); };
-          button.onclick = () => { threeHourDiagramOpen = !threeHourDiagramOpen; sync(); };
-          sync();
-        }
+          dashboard: latestForecastData || {}, week: latestMeteoFranceWeek, hazardsMarkup: threeHourHazardsMarkup, alertForSlot });
         alignDailyLegendSources(piafTarget);
         bindChartTooltips(piafTarget);
       };

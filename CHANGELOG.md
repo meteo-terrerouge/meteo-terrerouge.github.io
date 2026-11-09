@@ -39,3 +39,27 @@
 09/11/2026 18:47 — v0.041 — Vignettes quotidiennes compactes sous la frise 3 h, avec une ou deux conditions, cumuls à minuit et graphique 24 h interactif au clic. Échelles de pluie et de neige, repères de pluie discrets et rendu sombre harmonisé. Avertissement journalier jaune dès 40 mm et orange dès 50 mm. Pictogrammes de pluie inspirés des Tatins, avec gouttes réduites de 15 % et niveaux d’intensité correspondants sur les deux frises.
 
 09/11/2026 19:32 — v0.042 — Dégradé de pluie saturé à 7 mm/h et traces « gouttes » à la hauteur minimale des cumuls. Titre du bulletin réduit de 15 % et typographie des vignettes reprise pour la date de la frise 24 h. Avertissements jaune, orange et rouge par créneau sur la frise 3 h.
+
+09/11/2026 20:13 — v0.043 — Éclairs des pictogrammes réduits de 15 %, chiffres liés aux avertissements agrandis et renforcés sur les vignettes et la frise 3 h. Retrait des deux icônes de l’en-tête « Les 3 prochaines heures ».
+
+09/11/2026 20:24 — v0.044 — Nombre de gouttes des vignettes et de la frise 24 h calculé sur la même intensité de pluie, y compris en pluie et neige mêlées. Valeurs qui déclenchent la couleur d’avertissement nettement agrandies et encadrées.
+
+09/11/2026 20:32 — v0.045 — Chaque mesure est encadrée dès le seuil jaune et conserve sa couleur habituelle. Le cadre du cumul de pluie inclut la goutte.
+
+09/11/2026 20:37 — v0.046 — Les gouttes du résumé représentent de nouveau le cumul de pluie de la journée ou du créneau indiqué. La frise 24 h conserve les niveaux d’intensité en mm/h. Le vent moyen est affiché à côté des rafales sur les vignettes.
+
+09/11/2026 20:42 — v0.047 — Cumuls chiffrés de pluie et de neige sans pictogramme adjacent. Vent moyen en vert sur les vignettes et unité km/h répétée à côté des deux vitesses.
+
+09/11/2026 20:49 — v0.048 — Le résumé chiffré de la frise 3 h reprend la disposition, les couleurs et les unités des vignettes de la semaine.
+
+09/11/2026 20:53 — v0.049 — Chiffres du résumé 3 h regroupés à gauche, cumuls libellés et mention « Orage possible » retirée du résumé.
+
+09/11/2026 21:01 — v0.050 — Vent en fin de résumé 3 h avec les critères d’affichage des vignettes. Le libellé bleu du cumul inclut l’heure de fin si la couverture est partielle.
+
+09/11/2026 21:06 — v0.051 — Libellé, valeur et unité du cumul 3 h uniformisés en bleu. L’heure apparaît uniquement si les données s’arrêtent avant la fin des trois heures.
+
+09/11/2026 21:10 — v0.052 — Goutte après le libellé « Cumul » sur la frise 3 h, heure de fin entre parenthèses en petits caractères et encadrés d’alerte à la taille des autres chiffres.
+
+09/11/2026 21:15 — v0.053 — Les chiffres encadrés des vignettes et de la frise 3 h ont la même taille et la même graisse que les autres valeurs.
+
+09/11/2026 21:33 — v0.054 — Infobulles des précipitations de la frise 24 h ramenées au créneau et à une ligne par type de précipitation.

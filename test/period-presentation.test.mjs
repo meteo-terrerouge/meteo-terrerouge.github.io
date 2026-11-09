@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import * as dailyRowsTools from '../public/daily-rows.js';
+import { compactCardsMarkup } from '../public/compact-forecast.js';
 
 const script = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
 const fn = name => {
@@ -33,7 +34,7 @@ const code = [constant('rainPictogramStep'), constant('meanWindIntensityLevel', 
 const HOUR = 3600000, now = Date.parse('2026-10-24T00:00:00Z');
 const slot = { key: 'morning', label: 'Matin', startHour: 2, endHour: 8, dayOffset: 0 };
 function engine(dashboard = {}) {
-  return runInNewContext(code + '\n({periodCard, dailyRowDaySummaryMarkup, dailyRowPeriodsMarkup, forecastPeriodDetailsMarkup, forecastPeriodHighlights, periodSourceDetails, forecastSlotAlertTone, rainProbabilitySummary})', {
+  return runInNewContext(code + '\n({periodCard, dailyRowDaySummaryMarkup, dailyRowPeriodsMarkup, forecastPeriodDetailsMarkup, forecastPeriodHighlights, periodSourceDetails, forecastSlotAlertTone, rainProbabilitySummary, rainPictogramStep})', {
     dailyRowsTools, siteProfile: { timezone: 'Europe/Paris' }, appNow: () => now, latestForecastData: dashboard, rainRiskDisplayThreshold: 20,
     forecastDailySlots: [slot], forecastSlotTimeRange: () => ({ start: now, end: now + 6 * HOUR }),
     slotDateKey: date => date, forecastLocalDateTime: () => new Date(now + 6 * HOUR),
@@ -95,6 +96,69 @@ const alertHours = (count, rain = 0, extra = {}) => Array.from({ length: count +
   liquidRain: index ? rain : null, snowfall: 0, temperature: 6, cloudCover: 100,
   windSpeed: 10, windGust: 20, weatherCode: 61, probability: 100, ...extra
 }));
+
+const compactCard = (day, input) => {
+  const { forecastSlotAlertTone, rainPictogramStep } = engine();
+  return compactCardsMarkup([day], { ...input, ...dailyRowsTools, siteId: 'test',
+    alertSources: dailyRowsTools.buildDailySourceRows(input), forecastSlotAlertTone, rainPictogramStep });
+};
+
+test('la vignette compte le cumul de pluie liquide et la frise son intensité', () => {
+  const midnight = Date.parse('2026-10-24T00:00:00+02:00');
+  for (const { rain, liquidRain, snowfall, cardDrops } of [
+    { rain: 1.8, liquidRain: 1.8, snowfall: 0, cardDrops: 5 },
+    { rain: 2.5, liquidRain: .6, snowfall: 1, cardDrops: 3 },
+  ]) {
+    const hours = alertHours(24, rain, { liquidRain, snowfall }).map((hour, index) =>
+      ({ ...hour, time: new Date(midnight + index * HOUR).toISOString() }));
+    const input = { dashboard: { arome: { hours } }, week: {}, now: midnight, timezone: 'Europe/Paris' };
+    const [day] = dailyRowsTools.buildDailyRows(input);
+    const card = compactCard(day, input);
+    const chart = dailyRowsTools.dailyChartMarkup(day, { now: midnight, width: 2400 });
+    assert.deepEqual([...card.matchAll(/calque-pluie-([1-5])\.svg/g)].map(match => Number(match[1])), [cardDrops]);
+    assert.deepEqual([...new Set([...chart.matchAll(/data-rain-level="([1-5])"/g)].map(match => Number(match[1])))], [1]);
+  }
+});
+
+test('chaque pictogramme utilise le cumul de son propre créneau sur une vignette à deux conditions', () => {
+  const midnight = Date.parse('2026-10-24T00:00:00+02:00');
+  const hours = alertHours(24).map((hour, index) => {
+    const rain = index > 12 ? 3 : 1;
+    return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain, stormSignal: index >= 12 };
+  });
+  const input = { dashboard: { arome: { hours } }, week: {}, now: midnight, timezone: 'Europe/Paris' };
+  const [day] = dailyRowsTools.buildDailyRows(input);
+  const html = compactCard(day, input);
+  assert.match(html, /class="period">Matin<[\s\S]*?calque-pluie-2\.svg[\s\S]*?class="period">Après-midi<[\s\S]*?calque-pluie-4\.svg/);
+});
+
+test('les vignettes mettent en évidence chaque mesure dès le jaune', () => {
+  const midnight = Date.parse('2026-10-24T00:00:00+02:00');
+  for (const { rain, gust, tone, metrics } of [
+    { rain: 0, gust: 68, tone: 'yellow', metrics: ['gust-speed'] },
+    { rain: 39.99, gust: 99, tone: 'orange', metrics: ['gust-speed'] },
+    { rain: 42.9, gust: 99, tone: 'orange', metrics: ['gust-speed', 'rain-amount'] },
+    { rain: 42.9, gust: 105, tone: 'red', metrics: ['gust-speed', 'rain-amount'] },
+    { rain: 50, gust: 68, tone: 'orange', metrics: ['gust-speed', 'rain-amount'] },
+    { rain: 144, gust: 85, tone: 'red', metrics: ['gust-speed', 'rain-amount'] },
+  ]) {
+    const hours = alertHours(24, rain / 24, { windGust: gust }).map((hour, index) =>
+      ({ ...hour, time: new Date(midnight + index * HOUR).toISOString() }));
+    const input = { dashboard: { arome: { hours } }, week: {}, now: midnight, timezone: 'Europe/Paris' };
+    const [day] = dailyRowsTools.buildDailyRows(input);
+    const html = compactCard(day, input);
+    assert.equal(html.match(/data-alert="([^"]+)"/)?.[1], tone);
+    assert.deepEqual([...html.matchAll(/class="([^" ]+) alert-value"/g)].map(match => match[1]), metrics);
+    assert.match(html, new RegExp('Vent moyen jusqu’à 10 km/h[\\s\\S]*?class="wind-divider"[^>]*>/[\\s\\S]*?Rafales jusqu’à ' + gust + ' km/h'));
+    assert.equal([...html.matchAll(/class="gust-unit"/g)].length, 2);
+    if (metrics.includes('rain-amount')) {
+      assert.match(html, /class="rain-reading"[^>]*><span class="rain-amount alert-value">/);
+    }
+    if (rain > 0) assert.doesNotMatch(html, /class="rain-drop"/);
+    else assert.match(html, /class="rain-drop"[\s\S]*?class="dry-slash"/);
+  }
+});
+
 const periodAlert = input => {
   const day = dailyRowsTools.buildDailyRows({ ...input, now })[0];
   const rows = dailyRowsTools.buildDailySourceRows({ ...input, now });
