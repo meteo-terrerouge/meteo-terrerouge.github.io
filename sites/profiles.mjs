@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const base = {
   id: 'local', name: 'Bulletin météo local', place: '',
   latitude: null, longitude: null, department: null, timezone: 'Europe/Paris',
-  forecastLayout: 'daily-rows', forecastDays: 16, dailyPresentation: 'period-cards',
+  forecastLayout: 'daily-rows', forecastDays: 16, dailyPresentation: 'compact-cards',
   headerAltitude: null,
   apiMode: 'github-actions',
   features: {

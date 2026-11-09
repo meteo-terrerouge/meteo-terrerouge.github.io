@@ -6,12 +6,16 @@ const apiBaseUrl = new URL(runtimeConfig.apiBase || "./", document.baseURI);
 const siteProfile = { id: "local", place: "", latitude: null, longitude: null, ...runtimeConfig.site };
 const siteFeatures = { nowcasting: true, openMeteo: true, ...siteProfile.features };
 const dailyRowsLayout = siteProfile.forecastLayout === "daily-rows";
+const compactForecastLayout = dailyRowsLayout && siteProfile.dailyPresentation === "compact-cards";
+const dailyModuleUrl = name => new URL(name + "?v=" + encodeURIComponent(runtimeConfig.releaseNumber || "1"), document.currentScript?.src || document.baseURI).href;
 let dailyRowsTools = null;
+let compactForecastTools = null;
 const dailyChartStates = new Map();
 let dailyChartsResizeObserver = null;
 let threeHourDiagramOpen = true;
-const dailyRowsReady = dailyRowsLayout ? import(new URL("daily-rows.js?v=" + encodeURIComponent(runtimeConfig.releaseNumber || "1"), document.currentScript?.src || document.baseURI).href)
-  .then(module => { dailyRowsTools = module; renderWeekForecast(); }) : null;
+const dailyRowsReady = dailyRowsLayout ? Promise.all([import(dailyModuleUrl("daily-rows.js")),
+  compactForecastLayout ? import(dailyModuleUrl("compact-forecast.js")) : null])
+  .then(([daily, compact]) => { dailyRowsTools = daily; compactForecastTools = compact; renderWeekForecast(); }) : null;
 const apiUrl = path => {
   const relative = String(path).replace(/^\/+/, "");
   if (runtimeConfig.dataMode === "static" && relative.startsWith("api/")) {
@@ -140,12 +144,12 @@ function forecastSourceAlertTone({ wind = 0, gust = 0, probability = 0, rain = 0
   return "";
 }
 
-function forecastSlotAlertTone(sources = []) {
+function forecastSlotAlertTone(sources = [], initialTone = "") {
   const ranks = { "": 0, yellow: 1, orange: 2, red: 3 };
   return (Array.isArray(sources) ? sources : [sources]).reduce((selected, source) => {
     const tone = forecastSourceAlertTone(source);
     return ranks[tone] > ranks[selected] ? tone : selected;
-  }, "");
+  }, initialTone);
 }
 
 function graphIconMarkup(className) {
@@ -1042,7 +1046,7 @@ function displayIcon(item) {
   const base = night && cloudLevel === 0 && rainLevel === 0
     ? "vendor/meteocons/" + moonPhaseMeteoconName(date) + ".svg"
     : "vendor/weather-variants/cloud-" + period + "-" + cloudLevel + ".svg";
-  const rainMarkup = rainLevel ? '<img class="weather-rain-layer" src="vendor/weather-variants/rain-' + rainLevel + '.svg" alt="" loading="lazy" decoding="async">' : '';
+  const rainMarkup = rainLevel ? '<img class="weather-rain-layer" src="pictogrammes/calque-pluie-' + rainLevel + '.svg" alt="" loading="lazy" decoding="async">' : '';
   return '<span class="weather-variant-icon" role="img" aria-label="' + escapeText(label) + '"><img class="weather-cloud-layer" src="' + base + '" alt="" loading="lazy" decoding="async">' + rainMarkup + '</span>';
 }
 
@@ -2784,6 +2788,142 @@ function renderSiteHeader() {
   target.innerHTML = solarTime("Lever du soleil", sun.sunrise, false) + solarTime("Coucher du soleil", sun.sunset, true) + '<span class="site-moon">' + moonPhaseIcon(now) + '<span>' + moonLabels[moon] + '</span></span>';
 }
 
+function addDailyTimeCursor(canvas, day, timezone) {
+  const timeFormat = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: timezone });
+  const cursor = document.createElement('div');
+  cursor.className = 'daily-time-cursor';
+  cursor.hidden = true;
+  cursor.setAttribute('aria-hidden', 'true');
+  const time = document.createElement('output');
+  cursor.append(time);
+  canvas.append(cursor);
+
+  const svg = canvas.querySelector('.day-combined-svg');
+  const width = Number(svg.getAttribute('viewBox').split(' ')[2]);
+  const axis = dailyRowsTools.dailyTimeAxis(day, width);
+  function move(event) {
+    const bounds = svg.getBoundingClientRect();
+    if (!bounds.width || !Number.isFinite(event.clientX)) return;
+    const position = (event.clientX - bounds.left) * width / bounds.width;
+    const x = Math.max(axis.xStamp(day.start), Math.min(axis.xStamp(day.end), position));
+    cursor.style.left = `${100 * x / width}%`;
+    time.textContent = x >= axis.xStamp(day.end) ? '24:00' : timeFormat.format(Math.min(day.end - 60000, Math.round(axis.timeAt(x) / 60000) * 60000));
+    cursor.hidden = false;
+  }
+  canvas.addEventListener('pointermove', move);
+  canvas.addEventListener('pointerdown', move);
+  canvas.addEventListener('pointerleave', event => { if (event.pointerType !== 'touch') cursor.hidden = true; });
+}
+
+function bindDailyChart(article, day, state, chartOptions, { visible = () => true, beforeRedraw = () => {}, cursor = false } = {}) {
+  const scroll = article.querySelector(".day-chart-scroll");
+  let chartHeight = 260;
+  const apply = () => {
+    applyForecastMetricState(article, state.opacities, state.offsets);
+    article.querySelectorAll("[data-day-layer]").forEach(layer => {
+      const visible = state.opacities[layer.dataset.dayLayer] > 0;
+      layer.style.display = visible ? "" : "none";
+      layer.setAttribute("aria-hidden", String(!visible));
+      layer.querySelectorAll("[tabindex]").forEach(point => point.tabIndex = visible ? 0 : -1);
+    });
+    alignDailyLegendSources(article);
+  };
+  const redraw = () => {
+    if (!visible()) return;
+    beforeRedraw();
+    const viewportWidth = Math.max(160, scroll.clientWidth);
+    const { width, height, canExpand } = dailyRowsTools.dailyChartSize(viewportWidth, state, day);
+    chartHeight = height;
+    scroll._dailyChartWidth = Math.round(viewportWidth);
+    const content = article.querySelector(".day-chart-content");
+    content.style.width = width + "px";
+    content.innerHTML = dailyRowsTools.dailyChartMarkup(day, { ...chartOptions, now: appNow(), state, width, viewportWidth });
+    const widthControl = article.querySelector(".day-width-control");
+    widthControl.hidden = !canExpand;
+    widthControl.querySelector("input").checked = state.showHourly;
+    apply();
+    bindChartTooltips(article);
+    if (cursor) addDailyTimeCursor(content.querySelector(".day-combined-canvas"), day, chartOptions.timezone);
+  };
+  scroll._redrawDailyChart = redraw;
+  bindMetricControlButtons(article, state.opacities, state.offsets, apply);
+  redraw();
+  dailyChartsResizeObserver.observe(scroll);
+  article.querySelector(".day-width-control input").onchange = event => { state.showHourly = event.target.checked; redraw(); };
+  article.querySelectorAll("[data-metric-opacity]").forEach(button => button.onkeydown = event => {
+    const metric = button.dataset.metricOpacity;
+    if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") state.opacities[metric] = Math.max(0, Math.min(100, state.opacities[metric] + (event.key === "ArrowRight" ? 10 : -10)));
+    else if (!["rain", "cloudiness"].includes(metric)) state.offsets[metric] = Math.max(-chartHeight / 2, Math.min(chartHeight / 2, state.offsets[metric] + (event.key === "ArrowDown" ? 10 : -10)));
+    apply();
+  });
+  return redraw;
+}
+
+function renderCompactWeek(target, days, { now, dashboard, week, sourceRows, chartOptions, stateForDate }) {
+  target.closest("#panel-week").classList.add("compact-week");
+  document.body.classList.add("compact-forecast-layout");
+  target.classList.add("compact-forecast");
+  target.innerHTML = compactForecastTools.compactCardsMarkup(days, {
+    now, dashboard, week, timezone: chartOptions.timezone, siteId: siteProfile.id, alertSources: sourceRows,
+    forecastSlotAlertTone, ...dailyRowsTools
+  });
+
+  let dialog = $("compact-forecast-dialog");
+  if (!dialog) {
+    document.body.insertAdjacentHTML("beforeend", '<div class="compact-forecast"><dialog id="compact-forecast-dialog" aria-labelledby="compact-forecast-title"><header class="panel-heading"><h2 id="compact-forecast-title"></h2><form method="dialog"><button class="panel-close" aria-label="Fermer" autofocus>×</button></form></header><div class="panel-content"></div></dialog></div>');
+    dialog = $("compact-forecast-dialog");
+    dialog.addEventListener("close", () => {
+      if (dialog.open) return;
+      const scroll = dialog.querySelector(".day-chart-scroll");
+      if (scroll) dailyChartsResizeObserver?.unobserve(scroll);
+      const tooltip = $("chart-tooltip");
+      if (tooltip) {
+        tooltip.hidden = true;
+        document.body.append(tooltip);
+      }
+      dialog.querySelector(".panel-content").replaceChildren();
+      target.querySelector(`button[data-date="${dialog.dataset.date}"]`)?.focus({ preventScroll: true });
+    });
+  }
+  const openDate = date => {
+    const day = days.find(item => item.date === date);
+    const trigger = target.querySelector(`button[data-date="${date}"]`);
+    if (!day || !trigger) {
+      if (dialog.open) dialog.close();
+      return;
+    }
+    const template = document.createElement("template");
+    const state = stateForDate(date);
+    template.innerHTML = dailyRowsTools.dailyRowsMarkup([day], { ...chartOptions, now, collapsible: true,
+      stateForDate, controlsMarkup: forecastMetricControlsMarkup });
+    const panel = template.content.querySelector(".day-chart-panel");
+    panel.hidden = false;
+    panel.removeAttribute("style");
+    const previous = dialog.querySelector(".day-chart-scroll");
+    if (previous) dailyChartsResizeObserver.unobserve(previous);
+    dialog.querySelector(".panel-content").replaceChildren(panel);
+    dialog.dataset.date = date;
+    $("compact-forecast-title").textContent = trigger.dataset.title;
+    const tooltip = $("chart-tooltip");
+    if (tooltip) {
+      tooltip.hidden = true;
+      dialog.append(tooltip);
+    }
+    if (!dialog.open) dialog.showModal();
+    bindDailyChart(panel, day, state, { ...chartOptions, compactRain: true, backgroundForTime: time =>
+      "color-mix(in srgb, var(--chart-night) " + (100 * nightLevel(time, new Date(time))) + "%, var(--chart-day))" },
+    { visible: () => dialog.open, cursor: true });
+  };
+  target.onclick = event => {
+    const card = event.target.closest(".card");
+    const trigger = card?.querySelector(".card-chart-hit");
+    if (trigger) openDate(trigger.dataset.date);
+  };
+  if (dialog.open) openDate(dialog.dataset.date);
+}
+
 function renderWeekForecast() {
   if (dailyRowsLayout) {
     renderSiteHeader();
@@ -2800,7 +2940,7 @@ function renderWeekForecast() {
     };
     const days = dailyRowsTools.buildDailyRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
       now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16, sunTimesForDate: sunTimes, piafForChart: true });
-    const collapsible = siteProfile.dailyPresentation === "period-cards";
+    const collapsible = compactForecastLayout || siteProfile.dailyPresentation === "period-cards";
     const chartOptions = { timezone: siteProfile.timezone, iconMarkup: displayIcon, rainScale: dailyRowsTools.dailyRainScale(days),
       backgroundForTime: time => daylightColor(time, new Date(time)) };
     const piafTarget = $("piaf-three-hour-chart");
@@ -2808,7 +2948,7 @@ function renderWeekForecast() {
       piafTarget._redrawDailyChart = () => {
         const width = Math.max(200, piafTarget.clientWidth - 2);
         piafTarget._dailyChartWidth = Math.round(piafTarget.clientWidth);
-        piafTarget.innerHTML = dailyRowsTools.piafChartMarkup(currentNowcast(), { ...chartOptions, compact: collapsible, now: appNow(), width,
+        piafTarget.innerHTML = dailyRowsTools.piafChartMarkup(currentNowcast(), { ...chartOptions, compact: collapsible, compactRain: compactForecastLayout, now: appNow(), width,
           dashboard: latestForecastData || {}, week: latestMeteoFranceWeek, updateMarkup: dailyDataUpdateMarkup,
           chartIconMarkup: graphIconMarkup("daily-day-open-icon"), hazardsMarkup: threeHourHazardsMarkup });
         const controls = piafTarget.querySelector(".three-hour-view-controls");
@@ -2833,44 +2973,25 @@ function renderWeekForecast() {
     });
     const sourceRows = collapsible ? dailyRowsTools.buildDailySourceRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
       now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16 }) : [];
-    target.innerHTML = dailyRowsTools.dailyRowsMarkup(days, { ...chartOptions, now: appNow(), stateForDate,
+    if (compactForecastLayout) {
+      renderCompactWeek(target, days, { now: appNow(), dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
+        sourceRows, chartOptions, stateForDate });
+      return;
+    }
+    target.innerHTML = dailyRowsTools.dailyRowsMarkup(days, { ...chartOptions, now: appNow(), stateForDate, alertSources: sourceRows,
       collapsible, periodsMarkup: (day, state) => day.trend ? dailyRowDaySummaryMarkup(day, sourceRows) : dailyRowPeriodsMarkup(day, state, sourceRows), updateMarkup: dailyDataUpdateMarkup, chartIconMarkup: graphIconMarkup("daily-day-open-icon"),
       controlsMarkup: opacities => forecastMetricControlsMarkup(opacities) });
     target.querySelectorAll("[data-day-date]").forEach(article => {
       const state = stateForDate(article.dataset.dayDate);
       const day = days.find(item => item.date === article.dataset.dayDate);
-      const scroll = article.querySelector(".day-chart-scroll");
-      let chartHeight = 260;
-      const apply = () => {
-        applyForecastMetricState(article, state.opacities, state.offsets);
-        article.querySelectorAll("[data-day-layer]").forEach(layer => {
-          const visible = state.opacities[layer.dataset.dayLayer] > 0;
-          layer.style.display = visible ? "" : "none";
-          layer.setAttribute("aria-hidden", String(!visible));
-          layer.querySelectorAll("[tabindex]").forEach(point => point.tabIndex = visible ? 0 : -1);
-        });
-        alignDailyLegendSources(article);
-      };
-      const redraw = () => {
-        if (collapsible && !state.chartOpen) return;
-        if (collapsible) {
+      const redraw = bindDailyChart(article, day, state, chartOptions, {
+        visible: () => !collapsible || state.chartOpen,
+        beforeRedraw: () => {
+          if (!collapsible) return;
           const columns = getComputedStyle(target.querySelector(".daily-cards-grid")).gridTemplateColumns.split(" ").length;
           article.querySelector(".day-chart-panel").style.order = Math.floor(days.indexOf(day) / columns) * columns * 2 - 1;
         }
-        const viewportWidth = Math.max(160, scroll.clientWidth);
-        const { width, height, canExpand } = dailyRowsTools.dailyChartSize(viewportWidth, state, day);
-        chartHeight = height;
-        scroll._dailyChartWidth = Math.round(viewportWidth);
-        const content = article.querySelector(".day-chart-content");
-        content.style.width = width + "px";
-        content.innerHTML = dailyRowsTools.dailyChartMarkup(day, { ...chartOptions, now: appNow(), state, width, viewportWidth });
-        const widthControl = article.querySelector(".day-width-control");
-        widthControl.hidden = !canExpand;
-        widthControl.querySelector("input").checked = state.showHourly;
-        apply();
-        bindChartTooltips(article);
-      };
-      scroll._redrawDailyChart = redraw;
+      });
       if (collapsible) {
         const showPeriod = period => {
           if (!article.isConnected) return;
@@ -2909,18 +3030,6 @@ function renderWeekForecast() {
         chartButton.onclick = () => toggleChart(true);
         article.querySelector(".day-chart-close").onclick = () => toggleChart();
       }
-      bindMetricControlButtons(article, state.opacities, state.offsets, apply);
-      redraw();
-      dailyChartsResizeObserver.observe(scroll);
-      article.querySelector(".day-width-control input").onchange = event => { state.showHourly = event.target.checked; redraw(); };
-      article.querySelectorAll("[data-metric-opacity]").forEach(button => button.onkeydown = event => {
-        const metric = button.dataset.metricOpacity;
-        if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
-        event.preventDefault();
-        if (event.key === "ArrowLeft" || event.key === "ArrowRight") state.opacities[metric] = Math.max(0, Math.min(100, state.opacities[metric] + (event.key === "ArrowRight" ? 10 : -10)));
-        else if (!["rain", "cloudiness"].includes(metric)) state.offsets[metric] = Math.max(-chartHeight / 2, Math.min(chartHeight / 2, state.offsets[metric] + (event.key === "ArrowDown" ? 10 : -10)));
-        apply();
-      });
     });
     bindChartTooltips();
     return;

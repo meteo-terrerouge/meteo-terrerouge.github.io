@@ -6,10 +6,11 @@ import { weatherPictogram } from '../public/daily-rows.js';
 const sample = { time: '2026-11-04T12:00:00Z', cloudCover: 100 };
 const cloud = value => `<span data-cloud-rain="${value.rainLevel}"></span>`;
 
-test('les cinq calques de pluie ont réellement un à cinq traits', async () => {
+test('les cinq calques des pictogrammes ont réellement une à cinq gouttes', async () => {
   for (let level = 1; level <= 5; level++) {
-    const svg = await readFile(new URL('../public/vendor/weather-variants/rain-' + level + '.svg', import.meta.url), 'utf8');
-    assert.equal((svg.match(/<path /g) || []).length, level);
+    const svg = await readFile(new URL('../public/pictogrammes/calque-pluie-' + level + '.svg', import.meta.url), 'utf8');
+    assert.equal((svg.match(/data-part="drop"/g) || []).length, level);
+    assert.equal((svg.match(/data-part="drop" transform="[^"]*scale\(\.85\)/g) || []).length, level);
   }
 });
 
@@ -28,7 +29,7 @@ test('en mélange, les niveaux pluie et neige varient séparément et le nuage n
     for (const [snowfall, snowLevel] of [[.1, 1], [.4, 2], [2, 3]]) {
       const html = weatherPictogram({ ...sample, rain: liquidRain + 10, liquidRain, snowfall }, cloud);
       assert.ok(html.includes('day-mixed-layer'));
-      assert.ok(html.includes('href="vendor/weather-variants/rain-' + rainLevel + '.svg"'));
+      assert.ok(html.includes('href="pictogrammes/calque-pluie-' + rainLevel + '.svg"'));
       assert.ok(html.includes('href="pictogrammes/calque-neige-' + snowLevel + '.svg"'));
       assert.ok(html.includes('data-cloud-rain="0"'));
       assert.ok(html.includes('simultanéité non précisée'));
@@ -36,7 +37,7 @@ test('en mélange, les niveaux pluie et neige varient séparément et le nuage n
   }
 });
 
-test('le sec et les quantités inconnues ne gagnent aucun trait, sans convertir le froid en neige', () => {
+test('le sec et les quantités inconnues ne gagnent aucune goutte, sans convertir le froid en neige', () => {
   const dry = weatherPictogram({ ...sample, rain: 0, snowfall: 0 }, cloud);
   assert.ok(dry.includes('data-cloud-rain="0"'));
   assert.ok(!dry.includes('calque-neige-'));

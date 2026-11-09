@@ -84,6 +84,8 @@ test('les seuils des rafales et les trois couleurs sont communs, sans mélange d
   for (const [gust, color] of [[59, ''], [60, 'yellow'], [80, 'orange'], [100, 'red']])
     assert.equal(e.forecastSlotAlertTone([{ gust }]), color);
   assert.equal(e.forecastSlotAlertTone([{ probability: 95, rain: 1 }, { probability: 10, rain: 40 }]), '');
+  assert.equal(e.forecastSlotAlertTone([{ gust: 60 }], 'orange'), 'orange');
+  assert.equal(e.forecastSlotAlertTone([{ gust: 100 }], 'yellow'), 'red');
 });
 
 const alertHours = (count, rain = 0, extra = {}) => Array.from({ length: count + 1 }, (_, index) => ({
@@ -98,6 +100,36 @@ const periodAlert = input => {
   const html = engine(input.dashboard).dailyRowPeriodsMarkup(day, {}, rows);
   return { summaries, tone: html.match(/daily-period-alert-(yellow|orange|red)/)?.[1] || '' };
 };
+
+test('avertissement journalier de minuit à minuit à 40 et 50 mm avant arrondi', () => {
+  const midnight = Date.parse('2026-10-24T00:00:00+02:00');
+  for (const [amount, tone] of [[39.99, ''], [40, 'yellow'], [49.99, 'yellow'], [50, 'orange']]) {
+    const hours = alertHours(24, amount / 24, { probability: null }).map((hour, index) =>
+      ({ ...hour, time: new Date(midnight + index * HOUR).toISOString() }));
+    const input = { dashboard: { arome: { hours } }, now: midnight + 12 * HOUR };
+    const days = dailyRowsTools.buildDailyRows(input);
+    const alertSources = dailyRowsTools.buildDailySourceRows(input);
+    assert.equal(dailyRowsTools.dailyRainAlertTone(alertSources, days[0], input.now), tone);
+    const html = dailyRowsTools.dailyRowsMarkup(days, { now: input.now, collapsible: true, alertSources });
+    assert.equal(html.match(/data-daily-rain-alert="([^"]+)"/)?.[1] || '', tone);
+  }
+});
+
+test('le cumul journalier ne mélange pas les modèles ni la pluie avec la neige', () => {
+  const midnight = Date.parse('2026-10-24T00:00:00+02:00');
+  const hours = (count, amount, extra) => alertHours(count, amount, extra).map((hour, index) =>
+    ({ ...hour, time: new Date(midnight + index * HOUR).toISOString() }));
+  const tone = dashboard => {
+    const input = { dashboard, now: midnight };
+    const [day] = dailyRowsTools.buildDailyRows(input);
+    return dailyRowsTools.dailyRainAlertTone(dailyRowsTools.buildDailySourceRows(input), day, midnight);
+  };
+  assert.equal(tone({ arome: { hours: hours(12, 2) }, openMeteo: { hours: hours(24, 2.5) } }), '');
+  assert.equal(tone({ arome: { hours: hours(24, 0) }, openMeteo: { hours: hours(24, 3) } }), '');
+  assert.equal(tone({ openMeteo: { hours: hours(24, 2.5, { probability: 69 }) } }), '');
+  assert.equal(tone({ openMeteo: { hours: hours(24, 2.5, { probability: 70 }) } }), 'orange');
+  assert.equal(tone({ arome: { hours: hours(24, 3, { liquidRain: 0, snowfall: 1, weatherCode: 73 }) } }), '');
+});
 
 test('couleurs : AROME puis ARPEGE priment sur un scénario Open-Meteo plus alarmant', () => {
   for (const source of ['arome', 'arpege']) {
@@ -219,7 +251,7 @@ test('la synthèse quotidienne ajoute des flocons au-delà de 5 et 15 cm de neig
     assert.ok(html.includes('<strong>' + amount + ' cm</strong>'));
     assert.ok(html.includes('href="pictogrammes/calque-neige-' + level + '.svg"'), total + ' cm');
     assert.ok(html.includes('<strong>0,7 mm</strong>'));
-    assert.ok(html.includes('href="vendor/weather-variants/rain-1.svg"'));
+    assert.ok(html.includes('href="pictogrammes/calque-pluie-1.svg"'));
   }
 });
 

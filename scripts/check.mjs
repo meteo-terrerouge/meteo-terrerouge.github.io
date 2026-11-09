@@ -11,7 +11,7 @@ async function walk(directory) {
   }
 }
 for (const directory of ['scripts', 'sites', 'weather', 'test']) await walk(path.join(root, directory));
-for (const file of ['async-pool.mjs', 'public/app.js', 'public/admin.js', 'public/admin-api.js', 'public/config-format.js', 'public/daily-rows.js', 'public/forecast-core.js', 'public/service-worker.js', 'public/nowcast/engine.js', 'public/nowcast/map.js']) {
+for (const file of ['async-pool.mjs', 'public/app.js', 'public/admin.js', 'public/admin-api.js', 'public/config-format.js', 'public/daily-rows.js', 'public/compact-forecast.js', 'public/precipitation-24h.js', 'public/forecast-core.js', 'public/service-worker.js', 'public/nowcast/engine.js', 'public/nowcast/map.js']) {
   execFileSync(process.execPath, ['--check', path.join(root, file)], { stdio: 'inherit' });
 }
 console.log('Syntaxe vérifiée.');

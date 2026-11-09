@@ -15,6 +15,22 @@ const stamp = Date.parse('2026-10-20T22:00:00Z');
 const hour = (time, extra = {}) => ({ time: new Date(time).toISOString(), temperature: 12, rain: 1,
   cloudCover: 60, windSpeed: 10, windGust: 25, weatherCode: 3, ...extra });
 
+test('les pictogrammes 3 h et 24 h reprennent les seuils d’intensité des Tatins', () => {
+  const daytime = now + 10 * HOUR;
+  const rates = [1.8, 2.4, 11];
+  const dashboard = { arome: { hours: [0, ...rates].map((rain, index) =>
+    hour(daytime + index * HOUR, { rain, liquidRain: rain, snowfall: 0, weatherCode: rain ? 61 : 3 })) } };
+  const [day] = buildDailyRows({ dashboard, now });
+  const daily = dailyChartMarkup(day, { now, width: 2400 });
+  const forecast = { rainSteps: rates.map((precipitation, index) => ({
+    intervalStart: daytime + index * HOUR, intervalEnd: daytime + (index + 1) * HOUR, precipitation
+  })) };
+  const short = piafChartMarkup(forecast, { dashboard, now: daytime, compact: true, width: 1200 });
+  for (const html of [daily, short]) {
+    assert.deepEqual([...new Set([...html.matchAll(/data-rain-level="([1-5])"/g)].map(match => match[1]))], ['1', '2', '3']);
+  }
+});
+
 test('neige native : équivalent eau conservé et cm explicitement estimés, sans température seuil', () => {
   assert.deepEqual(nativeSnowAmounts(3, 2), { liquidRain: 1, snowfall: 1.4, snowWaterEquivalent: 2, snowfallMethod: 'water-equivalent-0.7' });
   for (const value of [null, undefined, -1, 5, NaN]) assert.equal(nativeSnowAmounts(3, value).snowfall, null);
