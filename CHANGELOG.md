@@ -37,3 +37,5 @@
 07/11/2026 22:15 — v0.040 — Sur les cartes Tendance, un flocon jusqu’à 5 cm de neige par jour, deux au-delà de 5 cm et trois au-delà de 15 cm, y compris en pluie et neige mêlées. Les seuils s’appliquent au cumul avant arrondi.
 
 09/11/2026 18:47 — v0.041 — Vignettes quotidiennes compactes sous la frise 3 h, avec une ou deux conditions, cumuls à minuit et graphique 24 h interactif au clic. Échelles de pluie et de neige, repères de pluie discrets et rendu sombre harmonisé. Avertissement journalier jaune dès 40 mm et orange dès 50 mm. Pictogrammes de pluie inspirés des Tatins, avec gouttes réduites de 15 % et niveaux d’intensité correspondants sur les deux frises.
+
+09/11/2026 19:32 — v0.042 — Dégradé de pluie saturé à 7 mm/h et traces « gouttes » à la hauteur minimale des cumuls. Titre du bulletin réduit de 15 % et typographie des vignettes reprise pour la date de la frise 24 h. Avertissements jaune, orange et rouge par créneau sur la frise 3 h.

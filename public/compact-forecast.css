@@ -50,6 +50,8 @@
   .compact-forecast dialog { width: min(1880px, calc(100% - 28px)); max-height: calc(100% - 28px); padding: 0; border: 1px solid #c8d7de; border-radius: 14px; color: inherit; }
   .compact-forecast dialog::backdrop { background: #193a4e66; }
   .compact-forecast .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 8px 14px; border-bottom: 1px solid #dbe5e9; background: #eef4f6; }
+  .compact-forecast .panel-heading h2 { font-size: calc(.9rem * var(--tile-zoom)); }
+  .compact-forecast .panel-heading h2 small { display: inline; margin: 0; font-size: calc(.68rem * var(--tile-zoom)); }
   .compact-forecast .panel-close { display: grid; place-items: center; width: 26px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #21617e; font-size: 1.5rem; cursor: pointer; }
   .compact-forecast .panel-close:hover { background: #dcebf1; }
   .compact-forecast .panel-close:focus-visible { outline: 2px solid #21617e; }
@@ -87,8 +89,12 @@ html[data-darkreader-scheme="dark"] .compact-forecast .panel-content { --chart-d
   :is(.day-rain-low, #piaf-rain-intensity stop[offset="0%"]) { stop-color: var(--rain-low) !important; }
   :is(.day-rain-medium, #piaf-rain-intensity stop[offset="50%"]) { stop-color: var(--rain-medium) !important; }
   :is(.day-rain-high, #piaf-rain-intensity stop[offset="100%"]) { stop-color: var(--rain-high) !important; }
-  .day-rain-trace { stop-color: var(--rain-low); }
+  .compact-forecast-layout .piaf-precipitation-view .piaf-trace-mark { fill: url(#piaf-rain-intensity); opacity: 1; }
   .rain-bar-drop { pointer-events: none; }
+  .piaf-slot-alert { pointer-events: none; }
+  .piaf-slot-alert-yellow { fill: rgba(238, 192, 35, .16); }
+  .piaf-slot-alert-orange { fill: rgba(226, 129, 50, .25); }
+  .piaf-slot-alert-red { fill: rgba(207, 77, 71, .3); }
   html[data-darkreader-scheme="dark"] .piaf-precipitation-view .piaf-rain-bar { fill: url(#piaf-rain-intensity); }
 .day-chart-scale[data-day-layer="rain"]:empty { display: none; }
 .day-precipitation-scales { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }

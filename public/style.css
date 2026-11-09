@@ -1409,7 +1409,7 @@ body.forecast-rows-layout { min-width: 0; }
 /* Local bulletin masthead. */
 .bulletin-header { padding: 22px 28px 18px; }
 .bulletin-header > div:first-child { width: 100%; }
-.bulletin-header h1 { color: #193d50; font-size: clamp(30px, 4.8vw, 48px); line-height: 1.2; }
+.bulletin-header h1 { color: #193d50; font-size: clamp(25.5px, 4.08vw, 40.8px); line-height: 1.2; }
 .site-title-separator { padding: 0; color: #91a5b0; font-weight: 500; }
 .site-location { margin: 8px 0 0; color: #617885; font-size: 12px; line-height: 1.5; font-variant-numeric: tabular-nums; }
 .site-daylight { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; margin-top: 11px; color: #536d7c; font-size: 12px; line-height: 1.5; }

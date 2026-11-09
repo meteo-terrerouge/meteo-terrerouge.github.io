@@ -126,15 +126,15 @@ const shortTermWindIntensityLevel = (meanWind, gust) => {
   return Math.max(meanWindIntensityLevel(meanSpeed), gustIntensityLevel(gustSpeed));
 };
 
-function forecastSourceAlertTone({ wind = 0, gust = 0, probability = 0, rain = 0, rain3h = 0, deterministic = false, stormRainOverlap = false, stormRainWindOverlap = false } = {}) {
+function forecastSourceAlertTone({ wind = 0, gust = 0, probability = 0, rain = 0, rain3h = 0, rainRate = 0, deterministic = false, stormRainOverlap = false, stormRainWindOverlap = false } = {}) {
   const windValue = Math.max(0, Number(wind) || 0);
   const gustValue = Math.max(0, Number(gust) || 0);
   const probabilityValue = Math.max(0, Number(probability) || 0);
   const rainValue = Math.max(0, Number(rain) || 0);
   const rain3hValue = Math.max(0, Number(rain3h) || 0);
-  const rainAttention = (deterministic || probabilityValue >= 70) && (rain3hValue >= 10 || rainValue >= 15);
-  const rainSerious = (deterministic || probabilityValue >= 70) && (rain3hValue >= 20 || rainValue >= 30);
-  const rainAlert = (deterministic || probabilityValue >= 80) && (rain3hValue >= 40 || rainValue >= 60);
+  const rainAttention = (deterministic || probabilityValue >= 70) && (rainRate >= 10 || rain3hValue >= 10 || rainValue >= 15);
+  const rainSerious = (deterministic || probabilityValue >= 70) && (rainRate >= 20 || rain3hValue >= 20 || rainValue >= 30);
+  const rainAlert = (deterministic || probabilityValue >= 80) && (rainRate >= 40 || rain3hValue >= 40 || rainValue >= 60);
   const windAttention = windValue >= 40 || gustValue >= 60;
   const windSerious = windValue >= 60 || gustValue >= 80;
   const windAlert = windValue >= 80 || gustValue >= 100;
@@ -2905,7 +2905,10 @@ function renderCompactWeek(target, days, { now, dashboard, week, sourceRows, cha
     if (previous) dailyChartsResizeObserver.unobserve(previous);
     dialog.querySelector(".panel-content").replaceChildren(panel);
     dialog.dataset.date = date;
-    $("compact-forecast-title").textContent = trigger.dataset.title;
+    const [weekday, ...dateParts] = trigger.dataset.title.split(" ");
+    const dateLabel = document.createElement("small");
+    dateLabel.textContent = dateParts.join(" ");
+    $("compact-forecast-title").replaceChildren(weekday + " ", dateLabel);
     const tooltip = $("chart-tooltip");
     if (tooltip) {
       tooltip.hidden = true;
@@ -2941,8 +2944,18 @@ function renderWeekForecast() {
     const days = dailyRowsTools.buildDailyRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
       now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16, sunTimesForDate: sunTimes, piafForChart: true });
     const collapsible = compactForecastLayout || siteProfile.dailyPresentation === "period-cards";
+    const sourceRows = collapsible ? dailyRowsTools.buildDailySourceRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
+      now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16 }) : [];
     const chartOptions = { timezone: siteProfile.timezone, iconMarkup: displayIcon, rainScale: dailyRowsTools.dailyRainScale(days),
       backgroundForTime: time => daylightColor(time, new Date(time)) };
+    const alertForSlot = ({ start, end, rainRate }) => {
+      const modelAlerts = days.filter(day => day.start < end && day.end > start).flatMap(day =>
+        dailyRowsTools.dailyPeriodAlertSummaries(sourceRows, day.date, Math.max(start, day.start), Math.min(end, day.end), start));
+      return forecastSlotAlertTone([
+        ...modelAlerts.map(item => ({ ...item, wind: item.windSpeed, gust: item.windGust })),
+        { rainRate, deterministic: true }
+      ]);
+    };
     const piafTarget = $("piaf-three-hour-chart");
     if (piafTarget) {
       piafTarget._redrawDailyChart = () => {
@@ -2950,7 +2963,7 @@ function renderWeekForecast() {
         piafTarget._dailyChartWidth = Math.round(piafTarget.clientWidth);
         piafTarget.innerHTML = dailyRowsTools.piafChartMarkup(currentNowcast(), { ...chartOptions, compact: collapsible, compactRain: compactForecastLayout, now: appNow(), width,
           dashboard: latestForecastData || {}, week: latestMeteoFranceWeek, updateMarkup: dailyDataUpdateMarkup,
-          chartIconMarkup: graphIconMarkup("daily-day-open-icon"), hazardsMarkup: threeHourHazardsMarkup });
+          chartIconMarkup: graphIconMarkup("daily-day-open-icon"), hazardsMarkup: threeHourHazardsMarkup, alertForSlot });
         const controls = piafTarget.querySelector(".three-hour-view-controls");
         if (controls) {
           const heading = document.querySelector(".three-hour-card > .forecast-day-header");
@@ -2971,8 +2984,6 @@ function renderWeekForecast() {
     if (collapsible) target.querySelectorAll(".forecast-day-periods").forEach(article => {
       stateForDate(article.dataset.dayDate).openPeriod = article.querySelector(".daily-period-card[open]")?.dataset.slotKey || null;
     });
-    const sourceRows = collapsible ? dailyRowsTools.buildDailySourceRows({ dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
-      now: appNow(), timezone: siteProfile.timezone, count: siteProfile.forecastDays || 16 }) : [];
     if (compactForecastLayout) {
       renderCompactWeek(target, days, { now: appNow(), dashboard: latestForecastData || {}, week: latestMeteoFranceWeek,
         sourceRows, chartOptions, stateForDate });

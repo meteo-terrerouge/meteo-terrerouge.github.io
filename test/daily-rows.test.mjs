@@ -15,6 +15,22 @@ const stamp = Date.parse('2026-10-20T22:00:00Z');
 const hour = (time, extra = {}) => ({ time: new Date(time).toISOString(), temperature: 12, rain: 1,
   cloudCover: 60, windSpeed: 10, windGust: 25, weatherCode: 3, ...extra });
 
+test('la frise 3 h colore uniquement les créneaux concernés par un avertissement', () => {
+  const hours = [0, 1, 2, 3].map(index => hour(now + index * HOUR, {
+    rain: 0, liquidRain: 0, snowfall: 0
+  }));
+  const rates = [12, 24, 48];
+  const rainSteps = rates.map((rate, index) => ({
+    intervalStart: now + index * HOUR,
+    intervalEnd: now + index * HOUR + 15 * 60000,
+    precipitation: rate / 4
+  }));
+  const html = piafChartMarkup({ rainSteps }, { now, compact: true, width: 1200, dashboard: { arome: { hours } },
+    alertForSlot: ({ rainRate }) => ({ 12: 'yellow', 24: 'orange', 48: 'red' })[rainRate] || '' });
+  assert.deepEqual([...html.matchAll(/class="piaf-slot-alert piaf-slot-alert-([^"]+)"/g)].map(match => match[1]), ['yellow', 'orange', 'red']);
+  assert.match(html, /Avertissement du bulletin : rouge/);
+});
+
 test('les pictogrammes 3 h et 24 h reprennent les seuils d’intensité des Tatins', () => {
   const daytime = now + 10 * HOUR;
   const rates = [1.8, 2.4, 11];

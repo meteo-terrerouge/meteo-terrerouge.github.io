@@ -1,6 +1,6 @@
 import { prepareBasicForecast } from './forecast-core.js';
 import { precipitation24h, precipitation24hScales, precipitation24hHeight, precipitation24hGradient,
-  precipitation24hLegend, precipitation24hBarMarkup, rainBarDropsMarkup } from './precipitation-24h.js';
+  precipitation24hLegend, precipitation24hBarMarkup, minimumRainBarHeight, rainBarDropsMarkup, rainIntensityGradient } from './precipitation-24h.js';
 
 const HOUR = 3600000;
 const CHART_INSET = 30;
@@ -723,7 +723,7 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
       + (group.estimated ? ' (part estimée au prorata)' : '') + '\nIntensité moyenne : ' + rainDetailNumber(rate) + ' mm/h'
       + (group.components.length > 1 ? '\nCumul agrégé pour l’affichage' : '')
       + (group.interpolated ? '\nOpen-Meteo : données horaires interpolées ; pas natif non communiqué' : '')
-      + (trace ? '\nGouttes : repère fixe de ' + (compactRain ? '1,5' : '5') + ' px, hors échelle d’intensité' : '')
+      + (trace ? '\nGouttes : repère fixe de ' + (compactRain ? minimumRainBarHeight : 5) + ' px, hors échelle d’intensité' : '')
       + '\n' + acquired + '\n' + group.source
       + (valid(group.liquidRain) ? '\nPluie liquide : ' + rainDetailNumber(group.liquidRain) + ' mm' : '\nRépartition pluie/neige non disponible ; cumul en équivalent eau')
       + (group.snowfall > 0 ? snowPhase(group)
@@ -738,7 +738,8 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
       `<g class="chart-point${phaseClass}"${group.edge ? ' data-adjacent-day="true"' : ''} data-rain-source="${escape(group.source)}" data-rain-amount="${group.rain}" data-rain-rate="${rate}" data-rain-hours="${hours}" tabindex="${state.opacities.rain ? 0 : -1}" data-tooltip="${escape(detail)}" aria-label="${escape(detail)}">${rainBar}${snowBar}${group.edge ? '' : label}</g>`;
     if (precipitation) {
       const { rain: amount, rainRate, snowRate } = precipitation;
-      const rainHeight = rainVisible(amount) ? trace ? 1.5 : Math.max(6, precipitation24hHeight(rainRate, scales.rain, height)) : 0;
+      const rainHeight = rainVisible(amount) ? trace ? minimumRainBarHeight
+        : Math.max(minimumRainBarHeight, precipitation24hHeight(rainRate, scales.rain, height)) : 0;
       const snowHeight = precipitation24hHeight(snowRate, scales.snow, height);
       const gap = group.edge ? 0 : Math.min(.8, (right - left) / 6);
       const barLeft = left + gap, barRight = Math.max(barLeft + .1, right - gap);
@@ -757,7 +758,7 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
       const label = showTrace ? `<text class="day-rain-label" x="${labelX}" y="${height - 11}" text-anchor="middle">gouttes</text>` : '';
       const phaseClass = snowHeight > 0 ? rainHeight > 0 ? ' day-combined-mixed' : ' day-combined-snow' : '';
       const { rainBar, snowBar } = precipitation24hBarMarkup({ left: barLeft, right: barRight, snowLeft, baseline: height,
-        rainHeight, snowHeight, relativeRainRate: rainRate / scales.rain, trace, gradient, edge: group.edge });
+        rainHeight, snowHeight, rainRate, trace, gradient, edge: group.edge });
       return pointMarkup(phaseClass, rainBar, snowBar, label);
     }
     const gap = group.edge ? 0 : Math.min(3, (right - left) * .1);
@@ -836,7 +837,7 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
   const sources = sourceUpdatesMarkup(day.sourceUpdates || day.sources.map(name => ({ name })), timezone, now);
   const precipCaption = compactRain ? precipitation24hLegend(scales, gradient)
     : hasSnow || !phaseKnown ? `Précip. 0–${number(rainScale)} mm/h équiv. eau · cumuls mm${hasSnow ? ' / neige cm' : ''}` : `Pluie 0–${number(rainScale)} mm/h · cumuls mm`;
-  const rainGradient = compactRain ? `<defs>${precipitation24hGradient(gradient, height)}</defs>` : '';
+  const rainGradient = compactRain && scales.rain ? `<defs>${precipitation24hGradient(gradient, height, scales.rain)}</defs>` : '';
   return `<div class="day-chart-key">${caption.replace('Pluie mm/h', () => precipCaption)}<span class="day-key-spacer" aria-hidden="true"></span>${sources}</div><div class="day-combined-canvas" data-display-step="${step}" style="height:${height}px"><svg class="day-combined-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="group" aria-label="Frise météo du ${day.date}">${rainGradient}${backgrounds}${cloudiness}${missingRain}${rain}${snowCaps}${continuousLayer('wind')}${continuousLayer('gust')}${continuousLayer('temperature')}</svg><div class="day-timeline-header">${header}${evening ? '' : `<time class="day-timeline-end" style="left:${xStamp(day.end) / width * 100}%">24h</time>`}</div>${history}${eveningHeader}</div>`;
 }
 
@@ -1032,7 +1033,7 @@ function piafHoverText(sample, previous, next) {
     + '\nTendance : ' + piafHoverTrend(sample, previous, next);
 }
 
-export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compact = false, compactRain = false, showSnowFlakes = false, timezone = 'Europe/Paris', dashboard = {}, week = {}, iconMarkup = () => '', backgroundForTime = () => '#f7fafc', updateMarkup = () => '', chartIconMarkup = '', hazardsMarkup = () => '' } = {}) {
+export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compact = false, compactRain = false, showSnowFlakes = false, timezone = 'Europe/Paris', dashboard = {}, week = {}, iconMarkup = () => '', backgroundForTime = () => '#f7fafc', updateMarkup = () => '', chartIconMarkup = '', hazardsMarkup = () => '', alertForSlot = () => '' } = {}) {
   const end = now + 3 * HOUR;
   const sources = forecastSources(dashboard, week);
   const precipitationIntervals = nativeRainIntervals(sources);
@@ -1266,12 +1267,12 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
       + Math.max(0, Math.min(sample.end, interval.end) - Math.max(sample.start, interval.start)), 0) >= sample.end - sample.start - 1)).map(sample => {
     const span = x(sample.end) - x(sample.start), gap = Math.min(.8, span / 6);
     const barLeft = x(sample.start) + gap, barWidth = Math.max(.1, span - 2 * gap);
-    const barHeight = Math.max(compactRain ? 6 : 0, bottom - y(sample.rate)), barTop = bottom - barHeight;
-    const drops = compactRain ? rainBarDropsMarkup(barLeft, barLeft + barWidth, barTop, sample.rate / maxRate, .5) : '';
+    const barHeight = Math.max(compactRain ? minimumRainBarHeight : 0, bottom - y(sample.rate)), barTop = bottom - barHeight;
+    const drops = compactRain ? rainBarDropsMarkup(barLeft, barLeft + barWidth, barTop, sample.rate) : '';
     return `<rect class="piaf-rain-bar${phaseClass(sample.phase)}" x="${barLeft}" y="${barTop}" width="${barWidth}" height="${barHeight}" data-rain-rate="${sample.rate}" data-rain-amount="${sample.amount}"/>${drops}`;
   }).join('') : '';
   let lastTraceLabelRight = -Infinity;
-  const traceHeight = compactRain ? 1.5 : 5;
+  const traceHeight = compactRain ? minimumRainBarHeight : 5;
   const traces = traceEpisodes.map(episode => {
     if (snowOnly) return '';
     const start = x(episode.start), stop = x(episode.end), center = Math.max(23, Math.min(width - 23, (start + stop) / 2));
@@ -1296,6 +1297,8 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
   }).join('');
   // One icon per equal time window. Check every acquired boundary so a brief
   // precipitation or storm signal cannot disappear between sampled clock ticks.
+  const alertBackgrounds = [];
+  const alertLabels = { yellow: 'jaune', orange: 'orange', red: 'rouge' };
   const header = compact ? times.slice(0, -1).map((start, index) => {
     const stop = times[index + 1], center = (start + stop) / 2;
     const candidateTimes = [...new Set([start, center, ...weather.map(sample => sample.stamp),
@@ -1306,14 +1309,21 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
       const sample = weatherAt(time);
       if (rank(sample) > rank(representative) || rank(sample) === rank(representative) && (sample.rain || 0) > (representative.rain || 0)) representative = sample;
     }
-    const detail = windowHoverText(start, stop);
+    const rainRate = Math.max(0, ...samples.filter(sample => sample.phase === 'rain' && sample.start < stop && sample.end > start)
+      .map(sample => sample.rate));
+    const tone = alertForSlot({ start, end: stop, rainRate });
+    const alertLabel = alertLabels[tone];
+    if (alertLabel) alertBackgrounds.push(`<rect class="piaf-slot-alert piaf-slot-alert-${tone}" x="${x(start)}" y="0" width="${x(stop) - x(start)}" height="${height}" aria-hidden="true"/>`);
+    const detail = windowHoverText(start, stop) + (alertLabel ? '\nAvertissement du bulletin : ' + alertLabel : '');
     const slotWidth = Math.min(77, (right - left) / (180 / step));
     const pictogram = weatherPictogram({ ...representative, phaseDescription: '' }, iconMarkup).replace(/\s+title="[^"]*"/g, '');
     return `<div class="day-timeline-slot piaf-weather-slot chart-point" tabindex="0" data-tooltip="${escape(detail)}" aria-label="${escape(detail)}" style="left:${x(center) / width * 100}%;width:${slotWidth}px;--piaf-weather-size:${Math.min(72, slotWidth - 4)}px;--piaf-weather-time-size:${Math.min(11, slotWidth / 3.4)}px" data-slot-start="${start}" data-slot-end="${stop}"><time datetime="${new Date(center).toISOString()}">${format.format(center)}</time>${pictogram}</div>`;
   }).join('') : times.map(time => `<div class="day-timeline-slot" style="left:${x(time) / width * 100}%"><time datetime="${new Date(time).toISOString()}">${format.format(time)}</time>${weatherPictogram(weatherAt(time), iconMarkup)}</div>`).join('');
   const axis = [0, maxRate / 2, maxRate].map(rate => `<text x="${left - 6}" y="${Math.min(height - 4, y(rate) + 4)}" text-anchor="end">${number(rate)}</text>`).join('');
   // Colour and height share a linear intensity scale, independently of cumulative rainfall.
-  const blueGradient = compact ? `<defs><linearGradient id="piaf-rain-intensity" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="${bottom}" y2="${y(maxRate)}"><stop offset="0%" stop-color="#dbeafe"/><stop offset="50%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#1e3a8a"/></linearGradient>${snowBarSymbol}</defs>` : '';
+  const rainGradient = compactRain ? rainIntensityGradient('piaf-rain-intensity', bottom, bottom - y(maxRate), maxRate)
+    : `<linearGradient id="piaf-rain-intensity" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="${bottom}" y2="${y(maxRate)}"><stop offset="0%" stop-color="#dbeafe"/><stop offset="50%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#1e3a8a"/></linearGradient>`;
+  const blueGradient = compact ? `<defs>${rainGradient}${snowBarSymbol}</defs>` : '';
   const snowScaleBar = barX => {
     const level = y(maxRate);
     const cap = `M${barX},${level + 1} C${barX + 1},${level + 1} ${barX + 2},${level - 1} ${barX + 3},${level - 1} C${barX + 4},${level - 1} ${barX + 5},${level + .5} ${barX + 6},${level + .5} C${barX + 7},${level + .5} ${barX + 7},${level} ${barX + 8},${level}`;
@@ -1353,7 +1363,7 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
   const sourceLine = sourceUpdatesMarkup(usedSources.map(name => ({ name, fetchedAt: metadata[name]?.fetchedAt })), timezone, now);
   const rainLegend = !samples.length ? 'Précip. PIAF indisponibles' : onlyTraces ? 'Précip. PIAF' : 'Précip. PIAF mm/h équiv. eau';
   const lightStops = weather.map(sample => `<stop offset="${(sample.stamp - now) / (end - now) * 100}%" stop-color="${escape(backgroundForTime(sample.stamp))}"/>`).join('');
-  const background = compact ? '' : `<defs><linearGradient id="piaf-daylight" gradientUnits="userSpaceOnUse" x1="${left}" x2="${right}" y1="0" y2="0">${lightStops}</linearGradient></defs><rect width="${width}" height="${height}" fill="url(#piaf-daylight)"/>`;
+  const background = compact ? alertBackgrounds.join('') : `<defs><linearGradient id="piaf-daylight" gradientUnits="userSpaceOnUse" x1="${left}" x2="${right}" y1="0" y2="0">${lightStops}</linearGradient></defs><rect width="${width}" height="${height}" fill="url(#piaf-daylight)"/>`;
   const updateSources = [...new Set([...usedSources, 'PIAF'])].map(name => ({ name, fetchedAt: metadata[name]?.fetchedAt }));
   const viewControls = compact ? `<div class="three-hour-view-controls"><button type="button" class="day-chart-toggle" aria-controls="piaf-three-hour-diagram" aria-expanded="true" aria-label="Afficher ou masquer le diagramme des trois prochaines heures" title="Afficher ou masquer le diagramme">${chartIconMarkup}</button>${updateMarkup({ sourceUpdates: updateSources })}</div>` : '';
     const legend = compact ? (samples.length || showSnowScale ? '' : '<div class="day-chart-key">Précip. PIAF indisponibles</div>') : `<div class="day-chart-key"><span class="piaf-legend-temperature">Température °C</span><span class="piaf-legend-rain"${samples.length ? '' : ' aria-label="PIAF indisponible" aria-disabled="true" title="PIAF indisponible"'}>${rainLegend}</span>${rainStatus}<span class="day-key-spacer" aria-hidden="true"></span>${sourceLine}</div>`;

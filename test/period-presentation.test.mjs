@@ -86,6 +86,8 @@ test('les seuils des rafales et les trois couleurs sont communs, sans mélange d
   assert.equal(e.forecastSlotAlertTone([{ probability: 95, rain: 1 }, { probability: 10, rain: 40 }]), '');
   assert.equal(e.forecastSlotAlertTone([{ gust: 60 }], 'orange'), 'orange');
   assert.equal(e.forecastSlotAlertTone([{ gust: 100 }], 'yellow'), 'red');
+  for (const [rainRate, color] of [[9.9, ''], [10, 'yellow'], [20, 'orange'], [40, 'red']])
+    assert.equal(e.forecastSlotAlertTone([{ rainRate, deterministic: true }]), color);
 });
 
 const alertHours = (count, rain = 0, extra = {}) => Array.from({ length: count + 1 }, (_, index) => ({
