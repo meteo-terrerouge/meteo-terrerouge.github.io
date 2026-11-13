@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import * as dailyRowsTools from '../public/daily-rows.js';
 import { compactCardsMarkup } from '../public/compact-forecast.js';
+import { collectWeather } from '../scripts/collect-weather.mjs';
+import { mergeWeatherState, publicWeatherFiles } from '../weather/state.mjs';
 
 const script = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
 const fn = name => {
@@ -103,6 +105,41 @@ const compactCard = (day, input) => {
     alertSources: dailyRowsTools.buildDailySourceRows(input), forecastSlotAlertTone, rainPictogramStep });
 };
 
+test('les flèches des vignettes utilisent les cycles publiés même sans historique local', async () => {
+  const midnight = Date.parse('2026-10-24T00:00:00+02:00');
+  const profile = { id: 'test', latitude: 44, longitude: 5, timezone: 'Europe/Paris', features: { arome: true } };
+  const run = (index, extra = {}) => ({
+    runTime: new Date(midnight - (4 - index) * HOUR).toISOString(),
+    fetchedAt: midnight - (3 - index) * HOUR,
+    hours: alertHours(24, 1 - index * .3, { temperature: 5 + index }).map((hour, offset) =>
+      ({ ...hour, time: new Date(midnight + offset * HOUR).toISOString() })),
+    ...extra
+  });
+  const collect = async (entry, arome) => (await collectWeather({ profile, entry, group: 'forecast',
+    collectors: { buildArome: async () => arome } })).entry;
+  const first = await collect({}, run(0));
+  const second = await collect(first, run(1));
+  const repeated = await collect(second, run(1, { fetchedAt: second.arome.fetchedAt + 1000 }));
+  assert.equal(repeated.forecastHistory.length, 1);
+  const third = await collect(repeated, run(2));
+  const merged = mergeWeatherState(third, second);
+  assert.equal(merged.arome.runTime, third.arome.runTime);
+  assert.deepEqual(merged.forecastHistory.map(revision => revision.sources.AROME.runTime), [first.arome.runTime, second.arome.runTime]);
+
+  const render = entry => {
+    const { data } = publicWeatherFiles(profile, entry)['dashboard.json'];
+    const input = { dashboard: data, week: {}, now: midnight, timezone: profile.timezone };
+    const [day] = dailyRowsTools.buildDailyRows(input);
+    return compactCard(day, input);
+  };
+  assert.doesNotMatch(render(second), /class="trend-arrow /);
+  const html = render(merged);
+  assert.match(html, /class="trend-arrow trend-temperature trend-up"[^>]*sur 3 relevés comparables/);
+  assert.match(html, /class="trend-arrow trend-rain trend-down"[^>]*sur 3 relevés comparables/);
+  const fourth = await collect(third, run(3));
+  assert.doesNotMatch(render({ ...second, forecastHistory: fourth.forecastHistory }), /class="trend-arrow /);
+});
+
 test('la vignette compte le cumul de pluie liquide et la frise son intensité', () => {
   const midnight = Date.parse('2026-10-24T00:00:00+02:00');
   for (const { rain, liquidRain, snowfall, cardDrops } of [
@@ -130,6 +167,45 @@ test('chaque pictogramme utilise le cumul de son propre créneau sur une vignett
   const [day] = dailyRowsTools.buildDailyRows(input);
   const html = compactCard(day, input);
   assert.match(html, /class="period">Matin<[\s\S]*?calque-pluie-2\.svg[\s\S]*?class="period">Après-midi<[\s\S]*?calque-pluie-4\.svg/);
+});
+
+test('la vignette distingue une accalmie autour de midi des épisodes avant et après', () => {
+  const midnight = Date.parse('2026-11-15T00:00:00+01:00');
+  const render = (gap = false) => {
+    const hours = alertHours(24).map((hour, index) => {
+      const rain = index > 0 && index <= 9 ? 1 : index > 16 ? 1.475 : 0;
+      return { ...hour, time: new Date(midnight + index * HOUR).toISOString(),
+        rain: gap && index === 12 ? null : rain, liquidRain: rain, stormSignal: index < 5 };
+    });
+    const input = { dashboard: { arome: { hours } }, week: {}, now: midnight - 2 * HOUR, timezone: 'Europe/Paris' };
+    const day = dailyRowsTools.buildDailyRows(input).find(day => day.date === '2026-11-15');
+    return compactCard(day, input);
+  };
+  const html = render();
+  assert.match(html, /data-pictograms="3"/);
+  const conditions = html.split('class="condition"').slice(1);
+  assert.match(conditions[0], /Avant 9 h[\s\S]*calque-pluie-3\.svg[\s\S]*calque-orage\.svg/);
+  assert.match(conditions[1], /En journée[\s\S]*temps sec/);
+  assert.doesNotMatch(conditions[1], /calque-(pluie|orage)/);
+  assert.match(conditions[2], /Dès 16 h[\s\S]*calque-pluie-3\.svg[\s\S]*class="rain-amount">20,8<\/span>/);
+  assert.doesNotMatch(render(true), /data-pictograms="3"/);
+});
+
+test('le cumul quotidien de neige fraîche apparaît en cm à côté de la pluie liquide', () => {
+  const midnight = Date.parse('2026-11-23T00:00:00+01:00');
+  for (const [snowfall, expected] of [[0, ''], [.04, '&lt; 1'], [1, '6']]) {
+    const hours = alertHours(24).map((hour, index) => {
+      const snow = index > 18 ? snowfall : 0;
+      return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain: .4083333333333333 + snow,
+        liquidRain: 9.8 / 24, snowfall: snow, weatherCode: snow ? 71 : 61 };
+    });
+    const input = { dashboard: { openMeteo: { hours } }, week: {}, now: midnight - 2 * HOUR, timezone: 'Europe/Paris' };
+    const day = dailyRowsTools.buildDailyRows(input).find(day => day.date === '2026-11-23');
+    const html = compactCard(day, input);
+    assert.match(html, /class="rain-amount">9,8<\/span><span class="rain-unit">mm/);
+    if (expected) assert.match(html, new RegExp(`class="rain-reading snow-total"[^>]*><span class="rain-amount">${expected}</span><span class="rain-unit">cm</span>`));
+    else assert.doesNotMatch(html, /class="rain-reading snow-total"/);
+  }
 });
 
 test('les vignettes mettent en évidence chaque mesure dès le jaune', () => {

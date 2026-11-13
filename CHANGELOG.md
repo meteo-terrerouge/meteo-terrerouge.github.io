@@ -65,3 +65,9 @@
 09/11/2026 21:33 — v0.054 — Infobulles des précipitations de la frise 24 h ramenées au créneau et à une ligne par type de précipitation.
 
 09/11/2026 21:42 — v0.055 — Valeurs d’alerte 30 % plus grandes et en gras sur les vignettes et la frise 3 h, sans encadrement.
+
+10/11/2026 21:57 — v0.056 — Flèches de variation des prévisions sur les vignettes à partir des cycles comparables conservés par le site, y compris à la première visite.
+
+13/11/2026 18:05 — v0.057 — Vignettes quotidiennes avec accalmie entre deux épisodes, cumul de neige fraîche en cm à côté de la pluie et goutte barrée seule sur la frise 3 h par temps sec.
+
+13/11/2026 18:56 — v0.058 — La frise 3 h masque le cumul lorsque les données PIAF sont indisponibles.

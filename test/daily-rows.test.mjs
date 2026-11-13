@@ -1265,20 +1265,21 @@ test('frise compacte : un cumul sec connu, un cumul partiel et une absence PIAF 
   const dry = piafChartMarkup(step(3 * HOUR, 0), options);
   assert.match(dry, /role="img" aria-label="Pas de pluie"/);
   assert.match(dry, /class="piaf-dry-rain-slash"/);
+  assert.doesNotMatch(dry, /class="piaf-summary-(?:label|coverage)"|class="rain-unit"/);
   assert.ok(!dry.includes('<b>Pas de pluie'));
   assert.ok(!dry.includes('piaf-daylight'));
-  assert.match(piafChartMarkup(step(HOUR, 0), options), /aria-label="Pas de pluie \(jusqu’à 1 h\)"/);
-  assert.match(piafChartMarkup(step(HOUR, 0), options), /<small class="piaf-summary-coverage">\(jusqu’à 1 h\)<\/small>/);
-  assert.match(piafChartMarkup(step(HOUR, 0), options), /couverture partielle/);
+  const dryPartial = piafChartMarkup(step(HOUR, 0), options);
+  assert.match(dryPartial, /aria-label="Pas de pluie \(jusqu’à 1 h\)"/);
+  assert.match(dryPartial, /<title>Pas de pluie \(jusqu’à 1 h\)<\/title>/);
+  assert.doesNotMatch(dryPartial, /class="piaf-summary-(?:label|coverage)"/);
   assert.ok(!dry.includes('piaf-intensity-line'));
   const partial = piafChartMarkup(step(HOUR, .25), options);
   assert.match(partial, /class="rain-amount">0,25<\/span><span class="rain-unit">mm<\/span><small class="piaf-summary-coverage">\(jusqu’à 1 h\)<\/small>/);
-  const missing = piafChartMarkup(null, options);
-  assert.match(missing, /class="rain-amount">—<\/span><span class="rain-unit">mm<\/span>/);
-  assert.ok(missing.includes('PIAF indisponibles'));
-  assert.ok(!missing.includes('piaf-dry-rain-slash'));
-  assert.ok(!missing.includes('piaf-intensity-line'));
-  assert.ok(!missing.includes('piaf-temperature-line'));
+  for (const forecast of [null, { rainSteps: [{ intervalStart: now - HOUR, intervalEnd: now, precipitation: 0 }] }]) {
+    const missing = piafChartMarkup(forecast, options);
+    assert.match(missing, /Précip\. PIAF indisponibles/);
+    assert.doesNotMatch(missing, /class="rain-total"|piaf-dry-rain-slash|piaf-intensity-line|piaf-temperature-line/);
+  }
 });
 
 
@@ -1313,7 +1314,8 @@ test('frise 3 h : vent et rafales restent prioritaires, avec signal d’orage su
   assert.doesNotMatch(piafChartMarkup(null, { now, compact: true, dashboard, hazardsMarkup }), /class="gust-total"/);
   dashboard.arome.hours[1].windGust = 50;
   const notable = piafChartMarkup(null, { now, compact: true, dashboard, hazardsMarkup });
-  assert.match(notable, /class="rain-total"[\s\S]*?class="gust-total"[\s\S]*?Vent moyen jusqu’à 22 km\/h[\s\S]*?Rafales jusqu’à 50 km\/h/);
+  assert.match(notable, /class="gust-total"[\s\S]*?Vent moyen jusqu’à 22 km\/h[\s\S]*?Rafales jusqu’à 50 km\/h/);
+  assert.doesNotMatch(notable, /class="rain-total"/);
 });
 
 test('la fraîcheur PIAF emploie ses seuils courts et les jours lointains placent la date dans le titre', () => {

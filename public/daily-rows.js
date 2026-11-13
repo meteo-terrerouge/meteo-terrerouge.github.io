@@ -1401,25 +1401,26 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
   const rainEnd = precipitationCoverageEnd(samples, timezone, coverageOptions);
   const snowEnd = precipitationCoverageEnd(snowIntervals, timezone, coverageOptions);
   const dropPath = '<path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/>';
-  const rainDrop = samples.length ? `<svg class="rain-drop" viewBox="0 0 24 24" aria-hidden="true">${dropPath}</svg>` : '';
-  const dryRainIcon = `<svg class="rain-drop" viewBox="0 0 24 24" role="img" aria-label="Pas de pluie${rainEnd ? ` (jusqu’à ${rainEnd})` : ''}">${dropPath}<path class="piaf-dry-rain-slash" d="M5 5 19 19" fill="none" stroke="#fff" stroke-width="4"/><path d="M5 5 19 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+  const rainDrop = `<svg class="rain-drop" viewBox="0 0 24 24" aria-hidden="true">${dropPath}</svg>`;
+  const dryLabel = `Pas de pluie${rainEnd ? ` (jusqu’à ${rainEnd})` : ''}`;
+  const dryRainIcon = `<svg class="rain-drop" viewBox="0 0 24 24" role="img" aria-label="${dryLabel}"><title>${dryLabel}</title>${dropPath}<path class="piaf-dry-rain-slash" d="M5 5 19 19" fill="none" stroke="#fff" stroke-width="4"/><path d="M5 5 19 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
   const coverage = time => time ? `<small class="piaf-summary-coverage">(jusqu’à ${time})</small>` : '';
   const reading = (amount, unit, { highlighted = false, label = '', icon = '', until = '' } = {}) =>
     `<span class="rain-reading">${label ? `<small class="piaf-summary-label">${label}${icon} :</small>` : ''}<span class="rain-amount${highlighted ? ' alert-value' : ''}">${escape(amount)}</span>${unit ? `<span class="rain-unit">${unit}</span>` : ''}${coverage(until)}</span>`;
   const trace = total > 0 && total < .1 - 1e-9;
-  const dryReading = rainEnd ? `<span class="rain-reading"><small class="piaf-summary-label">Cumul :</small>${dryRainIcon}${coverage(rainEnd)}</span>` : dryRainIcon;
-  const precipitationSummary = `<span class="piaf-precipitation-item" title="Cumul PIAF des trois prochaines heures en équivalent eau${partial ? ' ; couverture partielle' : ''}">${dry ? dryReading
-    : reading(trace ? 'gouttes' : rainDetailNumber(samples.length ? total : null), trace ? '' : 'mm', { label: 'Cumul', icon: rainDrop, until: rainEnd })}</span>`;
+  const precipitationSummary = samples.length ? `<span class="piaf-precipitation-item" title="${dry ? dryLabel : `Cumul PIAF des trois prochaines heures en équivalent eau${partial ? ' ; couverture partielle' : ''}`}">${dry ? dryRainIcon
+    : reading(trace ? 'gouttes' : rainDetailNumber(total), trace ? '' : 'mm', { label: 'Cumul', icon: rainDrop, until: rainEnd })}</span>` : '';
   const snowSummary = snowTotal > 0 ? `<span class="piaf-precipitation-item piaf-summary-snow" title="Neige fraîche estimée par ${escape(snowSources.join(' · '))} ; estimation distincte du cumul PIAF en équivalent eau ; pas une hauteur au sol">${reading(Math.round(snowTotal) || '< 1', 'cm', { label: 'Cumul neige', until: snowEnd })}</span>` : '';
   const alertRainMarkup = [
     ['Pic de pluie', alertCauses.rainRate, 'mm/h'],
     ['Cumul prévu', Math.max(alertCauses.rain ?? 0, alertCauses.rain3h ?? 0), 'mm'],
   ].filter(([, value]) => value > 0).map(([label, value, unit]) =>
     `<span class="piaf-precipitation-item"><small class="piaf-summary-note">${label}</small>${reading(rainDetailNumber(value), unit, { highlighted: true })}</span>`).join('');
+  const precipitationMetrics = precipitationSummary + snowSummary + alertRainMarkup;
   const [minimum, maximum] = temperatures.map(value => valid(value) ? number(value) + '°' : '—');
   const summary = compact ? `<div class="piaf-three-hour-summary forecast-metrics">
     <span class="temperatures"><span class="temperature-values" role="group" aria-label="Température minimale ${minimum}, maximale ${maximum}${temperaturePartial ? ' ; données partielles' : ''}"><span class="min" aria-hidden="true">${minimum}</span><span class="temperature-divider" aria-hidden="true">/</span><span class="max" aria-hidden="true">${maximum}</span></span></span>
-    <span class="rain-total">${precipitationSummary}${snowSummary}${alertRainMarkup}</span>
+    ${precipitationMetrics ? `<span class="rain-total">${precipitationMetrics}</span>` : ''}
     ${hazards}
   </div>` : '';
   const usedSources = [...new Set(weather.flatMap(sample => Object.values(sample.sources)))];

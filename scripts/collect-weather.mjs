@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { readSiteProfile } from '../sites/profiles.mjs';
 import { createForecastCollectors } from '../weather/collectors.mjs';
 import { createWeatherHttpClient } from '../weather/http-client.mjs';
-import { sourceDue } from '../weather/state.mjs';
+import { archiveForecastRevision, sourceDue } from '../weather/state.mjs';
 import { collectOpenMeteo } from '../weather/open-meteo.mjs';
 
 export async function collectWeather({ profile, entry = {}, token, group = 'all', checkpoint = async () => {}, onRequest, collectors: injected }) {
@@ -44,7 +44,10 @@ export async function collectWeather({ profile, entry = {}, token, group = 'all'
     if (name === 'ensemble' && !entry.pearome) continue;
     try {
       const value = await run();
-      if (value) entry[name] = value;
+      if (value) {
+        archiveForecastRevision(entry, name, value, profile);
+        entry[name] = value;
+      }
       await checkpoint(entry);
     } catch (error) { errors.push({ source: name, message: String(error.message).split(token || '\0').join('[masqué]') }); }
   }

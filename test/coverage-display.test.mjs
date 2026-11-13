@@ -2,12 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { piafChartMarkup, precipitationCoverageSuffix } from '../public/daily-rows.js';
 
-test('PIAF incomplet affiche son heure réelle, avec minutes, y compris pour le sec', () => {
+test('PIAF incomplet indique son heure réelle, avec minutes, dans le libellé de la goutte quand il fait sec', () => {
   const now = Date.parse('2026-11-04T17:00:00Z');
   for (const precipitation of [0, .03, .1]) {
     const rainSteps = [{ intervalStart: now, intervalEnd: now + 45 * 60000, precipitation }];
     const html = piafChartMarkup({ rainSteps }, { now, compact: true });
-    assert.match(html, /class="piaf-summary-coverage">\(jusqu’à 18 h 45 min\)<\/small>/);
+    if (precipitation === 0) {
+      assert.match(html, /aria-label="Pas de pluie \(jusqu’à 18 h 45 min\)"/);
+      assert.doesNotMatch(html, /class="piaf-summary-(?:label|coverage)"/);
+    } else {
+      assert.match(html, /class="piaf-summary-coverage">\(jusqu’à 18 h 45 min\)<\/small>/);
+    }
     assert.ok(!html.includes('(partiel)'));
     if (precipitation === .03) {
       assert.match(html, /class="rain-amount">gouttes<\/span><small class="piaf-summary-coverage">/);

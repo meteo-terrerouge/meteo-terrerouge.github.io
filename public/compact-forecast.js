@@ -1,6 +1,7 @@
 const temperature = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 const rainfall = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
 const roundedRainfall = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+const HOUR = 3600000;
 const skyLabels = ['Dégagé', 'Peu nuageux', 'Éclaircies', 'Nuageux', 'Très nuageux', 'Couvert'];
 const skyBand = cloud => [5, 25, 50, 75, 90, Infinity].findIndex(limit => cloud <= limit);
 const snowPhases = ['snow', 'snow-unknown', 'mixed'];
@@ -16,18 +17,20 @@ function trendArrow(direction, metric, description) {
 }
 
 function comparableSeries(periods, sourceOf, valueOf) {
-  const current = periods.at(-1)?.period;
+  const { period: current, sources } = periods.at(-1) ?? {};
   const model = current && sourceOf(current);
   if (!model || model.includes(' · ') || !Number.isFinite(valueOf(current))) return [];
+  const currentRun = new Date(sources[model]?.runTime ?? NaN).valueOf();
+  if (!Number.isFinite(currentRun)) return [];
   const byRun = new Map();
   for (const { period, sources } of periods) {
     if (!period || sourceOf(period) !== model) continue;
     const value = valueOf(period);
     const source = sources[model];
-    const timestamp = new Date(source?.runTime ?? source?.fetchedAt).valueOf();
-    if (Number.isFinite(value) && Number.isFinite(timestamp)) byRun.set(timestamp, value);
+    const timestamp = new Date(source?.runTime ?? source?.fetchedAt ?? NaN).valueOf();
+    if (Number.isFinite(value) && timestamp <= currentRun) byRun.set(timestamp, value);
   }
-  return [...byRun].sort((left, right) => left[0] - right[0]).map(([, value]) => value);
+  return [...byRun].sort((left, right) => left[0] - right[0]).slice(-8).map(([, value]) => value);
 }
 
 function globalDirection(series, threshold) {
@@ -96,6 +99,15 @@ function dailyRainMarkup(dayTotal, periods, highlighted) {
   </span>`;
 }
 
+function dailySnowMarkup(day, total, dailyRainBars) {
+  const amount = dailyRainBars(day, day.start, day.end, 'snowfall').reduce((sum, interval) => sum + interval.rain, 0);
+  if (amount <= 0) return '';
+  const partial = !total.completeRain || total.intervals.some(interval => interval.rain > 0 && !Number.isFinite(interval.snowfall));
+  const label = 'Cumul de neige fraîche estimée de minuit à minuit' + (partial ? ' ; données partielles' : '');
+  const value = temperature.format(amount) === '0' ? '&lt; 1' : temperature.format(amount);
+  return `<span class="rain-reading snow-total" title="${label}" aria-label="${label} : ${value} cm"><span class="rain-amount">${value}</span><span class="rain-unit">cm${partial ? '*' : ''}</span></span>`;
+}
+
 function temperatureMean(period) {
   if ("meanTemperature" in period) return period.meanTemperature;
   let duration = 0;
@@ -149,9 +161,24 @@ function changeScore(before, after) {
   return 0;
 }
 
+function middayLull(intervals, noon) {
+  let start, end;
+  for (const interval of intervals) {
+    const dry = interval.rain < .01 - 1e-9 && !(interval.snowfall > 0);
+    if (dry && interval.start === end) {
+      end = interval.end;
+      continue;
+    }
+    if (start < noon && noon < end && end - start >= 4 * HOUR) return [start, end];
+    start = dry ? interval.start : undefined;
+    end = dry ? interval.end : undefined;
+  }
+  return start < noon && noon < end && end - start >= 4 * HOUR ? [start, end] : null;
+}
+
 function card(day, options) {
-  const { now, today, tomorrow, dates, localHour, alertSources, history, forecastSlotAlertTone,
-    dailyPeriodAlertSummaries, dailyPeriodSummary, dailyRainAlertTone } = options;
+  const { now, today, tomorrow, dates, localHour, clock, alertSources, history, forecastSlotAlertTone,
+    dailyPeriodAlertSummaries, dailyPeriodSummary, dailyRainAlertTone, dailyRainBars } = options;
   const { weekday, day: number, month } = Object.fromEntries(dates.formatToParts(day.start).map(part => [part.type, part.value]));
   const dayLabel = day.date === today ? 'Aujourd’hui' : day.date === tomorrow ? 'Demain' : weekday;
   const chartTitle = `${weekday.charAt(0).toLocaleUpperCase('fr-FR')}${weekday.slice(1)} ${number} ${month}`;
@@ -174,12 +201,24 @@ function card(day, options) {
   const daytime = range(6, 18);
   const daySummary = { ...totals, cloudCover: daytime.cloudCover,
     storm: morning.storm || afternoon.storm || evening.storm };
+  const lull = middayLull(totals.intervals, at(12));
+  const lullPeriods = lull && lull[0] > day.start && lull[1] < day.end
+    ? [summarize(day, day.start, lull[0]), summarize(day, ...lull), summarize(day, lull[1], day.end)] : null;
+  const showLull = lullPeriods && !lullPeriods[1].storm
+    && [lullPeriods[0], lullPeriods[2]].every(period => period.rain >= .1 || period.storm);
   const atNoon = changeScore(morning, afternoon);
   const atEvening = changeScore(afternoon, evening);
   const split = Math.max(atNoon, atEvening) > 0;
   const wholeDaytime = morning.rain >= .1 && afternoon.rain >= .1 && morning.storm === afternoon.storm;
   const renderCondition = (period, trends, label, night) => condition(period, options, trends, label, night);
-  const conditions = !split ? renderCondition(daySummary, weatherTrends(dailyHistory)) : atNoon >= atEvening
+  const hourLabel = stamp => clock.format(stamp).replace(':00', ' h').replace(':', ' h ');
+  const conditions = showLull ? lullPeriods.map((period, index) => {
+    const midpoint = (period.start + period.end) / 2;
+    const night = midpoint < (day.sunrise ?? at(6)) || midpoint >= (day.sunset ?? at(18));
+    const label = [`Avant ${hourLabel(lull[0])}`, 'En journée', `Dès ${hourLabel(lull[1])}`][index];
+    return renderCondition(period, weatherTrends(periods(period.start, period.end)), label, night);
+  }).join('')
+    : !split ? renderCondition(daySummary, weatherTrends(dailyHistory)) : atNoon >= atEvening
     ? renderCondition(morning, arrows(6, 12), 'Matin') + renderCondition(afternoon, arrows(12, 18), 'Après-midi')
     : renderCondition(wholeDaytime ? daytime : afternoon, arrows(wholeDaytime ? 6 : 12, 18), wholeDaytime ? 'Avant 18 h' : 'Après-midi') + renderCondition(evening, arrows(18, 24), 'Soir', true);
   const alerts = [0, 6, 12, 18].filter(hour => at(hour + 6) > now)
@@ -187,7 +226,7 @@ function card(day, options) {
   const dailyTone = dailyRainAlertTone(alertSources, day, now);
   const { tone, causes } = forecastSlotAlertTone(alerts.map(item => ({ ...item, wind: item.windSpeed, gust: item.windGust })), dailyTone, true);
   const alert = tone ? ` data-alert="${tone}"${dailyTone ? ` data-daily-rain-alert="${dailyTone}"` : ''} aria-label="${dayLabel} ${number} ${month}. ${alertLabels[tone]}."` : '';
-  return `<li><article class="card${split ? ' card-transition' : ''}${day.trend ? ' card-outlook' : ''}" data-pictograms="${split ? 2 : 1}"${alert}>
+  return `<li><article class="card${split || showLull ? ' card-transition' : ''}${day.trend ? ' card-outlook' : ''}" data-pictograms="${showLull ? 3 : split ? 2 : 1}"${alert}>
     <h2 class="card-heading">${day.trend ? '<span class="outlook-label"><span>Tendance</span></span>' : ''}<time datetime="${day.date}"><span>${dayLabel}</span><small>${number} ${month}</small></time></h2>
     <div class="conditions">${conditions}</div>
     <div class="card-metrics forecast-metrics">
@@ -196,20 +235,14 @@ function card(day, options) {
         ${trend(meanTemperatures, 1, 'temperature', 'Tendance de la température moyenne')}
       </div>
       ${options.windSummaryMarkup(totals.windSpeed ?? causes.wind, totals.windGust ?? causes.gust, causes)}
-      ${dailyRainMarkup(totals, dailyHistory, ['rain', 'rain3h', 'rainRate'].some(metric => metric in causes))}
+      <div class="daily-precipitation-totals">${dailyRainMarkup(totals, dailyHistory, ['rain', 'rain3h', 'rainRate'].some(metric => metric in causes))}${dailySnowMarkup(day, totals, dailyRainBars)}</div>
     </div>
     <button type="button" class="card-chart-hit" data-date="${day.date}" data-title="${chartTitle}" aria-haspopup="dialog" aria-label="Ouvrir le graphique du ${number} ${month}"></button>
   </article></li>`;
 }
 
 
-function forecastHistory(days, { dashboard, week, now, timezone, siteId, dailyPeriodSummary }) {
-  const datasets = { AROME: dashboard.arome, ARPEGE: week, 'Open-Meteo': dashboard.openMeteo };
-  const sources = Object.fromEntries(Object.entries(datasets).flatMap(([name, data]) => {
-    const runTime = data?.runTime ?? data?.fetchedAt;
-    return runTime ? [[name, { runTime }]] : [];
-  }));
-  const key = 'meteo-compact-history-' + siteId;
+export function forecastRevision(days, { sources, now, timezone, dailyPeriodSummary }) {
   const current = { sources, days: {} };
   const localHour = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: timezone });
   for (const day of days) {
@@ -227,6 +260,17 @@ function forecastHistory(days, { dashboard, week, now, timezone, siteId, dailyPe
       };
     }
   }
+  return current;
+}
+
+function forecastHistory(days, { dashboard, week, now, timezone, siteId, dailyPeriodSummary }) {
+  const datasets = { AROME: dashboard.arome, ARPEGE: week, 'Open-Meteo': dashboard.openMeteo };
+  const sources = Object.fromEntries(Object.entries(datasets).flatMap(([name, data]) => {
+    const runTime = data?.runTime ?? data?.fetchedAt;
+    return runTime ? [[name, { runTime }]] : [];
+  }));
+  const current = forecastRevision(days, { sources, now, timezone, dailyPeriodSummary });
+  const key = 'meteo-compact-history-' + siteId;
   let history = [];
   try {
     const saved = JSON.parse(localStorage.getItem(key) ?? '[]');
@@ -236,7 +280,8 @@ function forecastHistory(days, { dashboard, week, now, timezone, siteId, dailyPe
   // Replace an incomplete copy of the same model runs and keep recent revisions.
   history = [...history.filter(item => JSON.stringify(item.sources) !== id), current].slice(-8);
   try { localStorage.setItem(key, JSON.stringify(history)); } catch {}
-  return history;
+  const published = Array.isArray(dashboard.forecastHistory) ? dashboard.forecastHistory : [];
+  return [...history.slice(0, -1), ...published.filter(item => item?.days && item.sources), current];
 }
 
 export function compactCardsMarkup(days, options) {
@@ -246,6 +291,7 @@ export function compactCardsMarkup(days, options) {
   const tomorrow = new Date(Date.parse(today + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
   const dates = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: timezone });
   const localHour = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', hourCycle: 'h23', timeZone: timezone });
+  const clock = new Intl.DateTimeFormat('fr-FR', { hour: 'numeric', minute: '2-digit', timeZone: timezone });
   const history = forecastHistory(days, options);
-  return '<ul class="week">' + days.map(day => card(day, { ...options, today, tomorrow, dates, localHour, history })).join('') + '</ul>';
+  return '<ul class="week">' + days.map(day => card(day, { ...options, today, tomorrow, dates, localHour, clock, history })).join('') + '</ul>';
 }
