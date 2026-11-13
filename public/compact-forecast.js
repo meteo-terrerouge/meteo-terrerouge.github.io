@@ -228,6 +228,9 @@ function card(day, options) {
   const { tone, causes } = forecastSlotAlertTone(alerts.map(item => ({ ...item, wind: item.windSpeed, gust: item.windGust })), dailyTone, true);
   const meanWind = totals.windSpeed ?? causes.wind;
   const visibleMeanWind = meanWind >= notableMeanWind || causes.wind ? meanWind : null;
+  const snow = dailySnowMarkup(day, totals, dailyRainBars);
+  const rain = snow && totals.completeRain && totals.liquidRain === 0 ? ''
+    : dailyRainMarkup(totals, dailyHistory, ['rain', 'rain3h', 'rainRate'].some(metric => metric in causes));
   const alert = tone ? ` data-alert="${tone}"${dailyTone ? ` data-daily-rain-alert="${dailyTone}"` : ''} aria-label="${dayLabel} ${number} ${month}. ${alertLabels[tone]}."` : '';
   return `<li><article class="card${split || showLull ? ' card-transition' : ''}${day.trend ? ' card-outlook' : ''}" data-pictograms="${showLull ? 3 : split ? 2 : 1}"${alert}>
     <h2 class="card-heading">${day.trend ? '<span class="outlook-label"><span>Tendance</span></span>' : ''}<time datetime="${day.date}"><span>${dayLabel}</span><small>${number} ${month}</small></time></h2>
@@ -238,7 +241,7 @@ function card(day, options) {
         ${trend(meanTemperatures, 1, 'temperature', 'Tendance de la température moyenne')}
       </div>
       ${options.windSummaryMarkup(visibleMeanWind, totals.windGust ?? causes.gust, causes)}
-      <div class="daily-precipitation-totals">${dailyRainMarkup(totals, dailyHistory, ['rain', 'rain3h', 'rainRate'].some(metric => metric in causes))}${dailySnowMarkup(day, totals, dailyRainBars)}</div>
+      <div class="daily-precipitation-totals">${snow}${rain}</div>
     </div>
     <button type="button" class="card-chart-hit" data-date="${day.date}" data-title="${chartTitle}" aria-haspopup="dialog" aria-label="Ouvrir le graphique du ${number} ${month}"></button>
   </article></li>`;

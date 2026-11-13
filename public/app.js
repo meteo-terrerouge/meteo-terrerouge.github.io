@@ -11,6 +11,7 @@ const dailyModuleUrl = name => new URL(name + "?v=" + encodeURIComponent(runtime
 let dailyRowsTools = null;
 let compactForecastTools = null;
 const dailyChartStates = new Map();
+let piafShowHourly = false;
 let dailyChartsResizeObserver = null;
 const dailyRowsReady = dailyRowsLayout ? Promise.all([import(dailyModuleUrl("daily-rows.js")),
   compactForecastLayout ? import(dailyModuleUrl("compact-forecast.js")) : null])
@@ -2830,9 +2831,8 @@ function addDailyTimeCursor(canvas, day, timezone) {
 
 function bindDailyChart(article, day, state, chartOptions, { visible = () => true, beforeRedraw = () => {}, cursor = false } = {}) {
   const scroll = article.querySelector(".day-chart-scroll");
-  let chartHeight = 260;
+  const rail = article.querySelector(".metric-controls-rail");
   const apply = () => {
-    applyForecastMetricState(article, state.opacities, state.offsets);
     article.querySelectorAll("[data-day-layer]").forEach(layer => {
       const visible = state.opacities[layer.dataset.dayLayer] > 0;
       layer.style.display = visible ? "" : "none";
@@ -2840,13 +2840,24 @@ function bindDailyChart(article, day, state, chartOptions, { visible = () => tru
       layer.querySelectorAll("[tabindex]").forEach(point => point.tabIndex = visible ? 0 : -1);
     });
     alignDailyLegendSources(article);
+    const canvas = scroll.querySelector(".day-combined-canvas");
+    if (rail && canvas && scroll.clientWidth) {
+      const legendHeight = canvas.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
+      rail.style.setProperty("--day-chart-legend-height", `${legendHeight}px`);
+      rail.querySelectorAll("[data-metric-opacity]").forEach(button => {
+        const key = button.dataset.metricOpacity;
+        const base = button.offsetTop;
+        const bottom = rail.clientHeight - button.offsetHeight - 7;
+        state.offsets[key] = Math.max(7 - base, Math.min(bottom - base, state.offsets[key]));
+      });
+    }
+    applyForecastMetricState(article, state.opacities, state.offsets);
   };
   const redraw = () => {
     if (!visible()) return;
     beforeRedraw();
     const viewportWidth = Math.max(160, scroll.clientWidth);
-    const { width, height, canExpand } = dailyRowsTools.dailyChartSize(viewportWidth, state, day);
-    chartHeight = height;
+    const { width, canExpand } = dailyRowsTools.dailyChartSize(viewportWidth, state, day);
     scroll._dailyChartWidth = Math.round(viewportWidth);
     const content = article.querySelector(".day-chart-content");
     content.style.width = width + "px";
@@ -2868,7 +2879,7 @@ function bindDailyChart(article, day, state, chartOptions, { visible = () => tru
     if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
     event.preventDefault();
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") state.opacities[metric] = Math.max(0, Math.min(100, state.opacities[metric] + (event.key === "ArrowRight" ? 10 : -10)));
-    else if (!["rain", "cloudiness"].includes(metric)) state.offsets[metric] = Math.max(-chartHeight / 2, Math.min(chartHeight / 2, state.offsets[metric] + (event.key === "ArrowDown" ? 10 : -10)));
+    else if (!["rain", "cloudiness"].includes(metric)) state.offsets[metric] += event.key === "ArrowDown" ? 10 : -10;
     apply();
   });
   return redraw;
@@ -2974,8 +2985,14 @@ function renderWeekForecast() {
       piafTarget._redrawDailyChart = () => {
         const width = Math.max(200, piafTarget.clientWidth - 2);
         piafTarget._dailyChartWidth = Math.round(piafTarget.clientWidth);
-        piafTarget.innerHTML = dailyRowsTools.piafChartMarkup(currentNowcast(), { ...chartOptions, compact: collapsible, compactRain: compactForecastLayout, now: appNow(), width,
+        piafTarget.innerHTML = dailyRowsTools.piafChartMarkup(currentNowcast(), { ...chartOptions, compact: collapsible, compactRain: compactForecastLayout, precipitationOnly: compactForecastLayout, showHourly: piafShowHourly, now: appNow(), width,
           dashboard: latestForecastData || {}, week: latestMeteoFranceWeek, hazardsMarkup: threeHourHazardsMarkup, alertForSlot });
+        const hourlyControl = piafTarget.querySelector('.day-width-control input');
+        if (hourlyControl) hourlyControl.onchange = event => {
+          piafShowHourly = event.target.checked;
+          piafTarget._redrawDailyChart();
+          piafTarget.querySelector('.day-width-control input')?.focus({ preventScroll: true });
+        };
         alignDailyLegendSources(piafTarget);
         bindChartTooltips(piafTarget);
       };

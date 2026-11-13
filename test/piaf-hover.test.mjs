@@ -20,9 +20,10 @@ test('le survol de la frise ne contient que cumul PIAF, intensité et flèche de
     assert.match(lines[2], /^Tendance : [↗→↘—]$/);
     assert.doesNotMatch(detail, /AROME|estimée|phase|échelle|équivalent|créneau|12:|13:/);
   }
-  assert.match(details[0], /Cumul PIAF : 0,05 mm\nIntensité : Pluie faible · 0,6 mm\/h\nTendance : ↗$/);
-  assert.match(details[1], /Tendance : ↘$/);
-  assert.match(details[2], /Tendance : ↘$/);
+  const points = tips(html.split('<div class="piaf-diagram">')[1]);
+  assert.match(points[0], /Cumul PIAF : 0,05 mm\nIntensité : Pluie faible · 0,6 mm\/h\nTendance : ↗$/);
+  assert.match(points[1], /Tendance : ↘$/);
+  assert.match(points[2], /Tendance : ↘$/);
   assert.doesNotMatch(html, /title="[^\"]*(?:phase|phénomènes|équivalent|cm\/h|mm\/h)/);
 });
 
@@ -37,7 +38,7 @@ test('l’intensité neige utilise les cm acquis, sans convertir le cumul PIAF',
 });
 
 test('mélange, verglaçant, phase inconnue, sec et données absentes restent distincts', () => {
-  const render = (amounts, extra) => tips(piafChartMarkup(forecast(amounts), { now, compact: true, dashboard: dashboard(extra) }));
+  const render = (amounts, extra) => tips(piafChartMarkup(forecast(amounts), { now, compact: true, dashboard: dashboard(extra) }).split('<div class="piaf-diagram">')[1]);
   assert.ok(render([.1, .1], { rain: 2, liquidRain: 1, snowfall: .5 })[0].includes('Pluie et neige · 1 mm/h + 0,5 cm/h'));
   assert.ok(render([.1, .1], { rain: 2, liquidRain: 2, snowfall: 0, weatherCode: 66 })[0].includes('Pluie verglaçante faible'));
   assert.ok(render([.1, .1], { liquidRain: null, snowfall: null })[0].includes('Nature inconnue'));

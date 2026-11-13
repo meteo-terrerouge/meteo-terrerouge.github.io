@@ -52,6 +52,63 @@ test('les pictogrammes 3 h et 24 h reprennent les seuils d’intensité des Tati
   }
 });
 
+test('la frise 3 h regroupe le temps stable et résume les changements en trois étapes au plus', () => {
+  const start = now + 10 * HOUR;
+  const duration = 30 * 60000;
+  for (const [rates, expected] of [
+    [[0, 0, 0, 0, 0, 0], 1],
+    [[0, 0, 0, 1, 1, 1], 2],
+    [[0, 0, 1, 1, 0, 0], 3],
+    [[0, 1, 0, 1, 0, 1], 2]
+  ]) {
+    const hours = Array.from({ length: 4 }, (_, index) => hour(start + index * HOUR,
+      { cloudCover: 100, rain: 0, liquidRain: 0, snowfall: 0 }));
+    const rainSteps = rates.map((rate, index) => ({ intervalStart: start + index * duration,
+      intervalEnd: start + (index + 1) * duration, precipitation: rate / 2 }));
+    const render = width => piafChartMarkup({ rainSteps }, { now: start, compact: true, width, dashboard: { arome: { hours } } });
+    const slots = html => [...html.matchAll(/data-slot-start="(\d+)" data-slot-end="(\d+)"/g)].map(match => match.slice(1).map(Number));
+    const wideMarkup = render(1200);
+    assert.match(wideMarkup, /class="piaf-weather-summary"[\s\S]*?class="piaf-weather-slot chart-point"[\s\S]*?<\/div><div class="piaf-diagram">/);
+    const diagram = wideMarkup.split('<div class="piaf-diagram">')[1];
+    assert.doesNotMatch(diagram, /piaf-weather-slot|day-timeline-header/);
+    assert.match(diagram, /<text[^>]*text-anchor="middle">\d{2}:\d{2}<\/text>/);
+    const wide = slots(wideMarkup);
+    assert.equal(wide.length, expected);
+    if (expected === 2 && rates[1] === 0) assert.equal(wide[0][1], start + 3 * duration);
+    if (expected === 3 && rates.at(-1) === 0) assert.deepEqual(wide.map(slot => slot[1]), [start + 2 * duration, start + 4 * duration, start + 6 * duration]);
+    assert.deepEqual(slots(render(320)), wide);
+    assert.equal(wide[0][0], start);
+    assert.equal(wide.at(-1)[1], start + 3 * HOUR);
+    assert.ok(wide.length <= 3 && wide.slice(1).every((slot, index) => slot[0] === wide[index][1]));
+  }
+});
+
+test('le diagramme seul marque les créneaux secs et distingue les créneaux humides, neigeux et inconnus', () => {
+  const start = now + 10 * HOUR;
+  const hours = [0, 1, 2, 3].map(index => hour(start + index * HOUR,
+    { rain: 0, liquidRain: 0, snowfall: index === 2 ? 1 : 0, weatherCode: index === 2 ? 73 : 3 }));
+  const options = { now: start, width: 320, compact: true, precipitationOnly: true };
+  const step = (index, precipitation) => ({ intervalStart: start + index * HOUR,
+    intervalEnd: start + (index + 1) * HOUR, precipitation });
+  const count = html => (html.match(/class="piaf-dry-slot chart-point"/g) || []).length;
+  const dry = piafChartMarkup({ rainSteps: [step(0, 0), step(1, 0), step(2, 0)] }, options);
+  assert.equal(dry, '<p class="piaf-dry-outlook">Pas de précipitation les 3 prochaines heures.</p>');
+  const mixed = piafChartMarkup({ rainSteps: [step(0, 0), step(1, 0), step(2, 1)] },
+    { ...options, dashboard: { arome: { hours } } });
+  assert.equal(count(mixed), 1);
+  assert.match(mixed, /piaf-snow-bar/);
+  assert.match(mixed, /piaf-rain-bar/);
+  assert.match(mixed, /piaf-vertical-scale/);
+  assert.doesNotMatch(mixed, /piaf-weather-summary|piaf-three-hour-summary|weather-icon|piaf-dry-outlook/);
+  assert.equal(count(piafChartMarkup({ rainSteps: [{ ...step(0, 0), intervalEnd: start + HOUR / 2 }] }, options)), 0);
+  assert.match(piafChartMarkup(null, options), /Précip\. PIAF indisponibles/);
+  const partial = { rainSteps: [step(0, 0), step(1, 0)] };
+  assert.match(piafChartMarkup(partial, options), /piaf-intensity-chart/);
+  const dryHours = hours.map(item => ({ ...item, snowfall: 0, weatherCode: 3 }));
+  assert.equal(piafChartMarkup(partial, { ...options, dashboard: { arome: { hours: dryHours } } }), dry);
+  assert.match(piafChartMarkup({ rainSteps: [step(0, 0), step(1, 0), step(2, .03)] }, options), /piaf-intensity-chart/);
+});
+
 test('neige native : équivalent eau conservé et cm explicitement estimés, sans température seuil', () => {
   assert.deepEqual(nativeSnowAmounts(3, 2), { liquidRain: 1, snowfall: 1.4, snowWaterEquivalent: 2, snowfallMethod: 'water-equivalent-0.7' });
   for (const value of [null, undefined, -1, 5, NaN]) assert.equal(nativeSnowAmounts(3, value).snowfall, null);
@@ -861,7 +918,7 @@ test('le résumé utilise la nébulosité diurne, la phase dominante en durée e
   const html = dailyRowsMarkup([day], { now, iconMarkup: () => '<img src="summary.svg" alt="Ciel">' });
   assert.match(html, /class="day-summary-icon"[^>]*Résumé météo[^>]*>.*src="summary.svg"/);
   assert.ok(!html.includes('Hauteur'));
-  assert.ok(html.includes('Afficher le détail heure par heure'));
+  assert.ok(html.includes('>afficher le détail par heure</label>'));
   assert.ok(html.includes('<small>Min.</small>'));
   assert.ok(html.includes('<small>Max.</small>'));
   assert.match(html, /class="daily-period-rain-volume"[^>]*><small>Précip.<\/small>/);
@@ -1437,6 +1494,54 @@ test('neige : mêmes petits espacements que la pluie et congères sur les seuls 
   assert.equal(piafChartMarkup(forecast,{now,compact:true,width:900,dashboard,showSnowFlakes:true}),html,'décor stable lors du rafraîchissement');
   assert.match(html, /class="rain-amount">4<\/span><span class="rain-unit">cm<\/span>/);
   assert.deepEqual({dashboard,forecast},before);
+});
+
+test('le diagramme 3 h regroupe progressivement pluie et neige sans masquer un trou PIAF', () => {
+  const step = 5 * 60000;
+  const dashboard = { arome: { hours: [
+    hour(now + HOUR, { rain: 2, liquidRain: 2, snowfall: 0, weatherCode: 61 }),
+    hour(now + 2 * HOUR, { rain: 1, liquidRain: 0, snowfall: 1, weatherCode: 73 }),
+    hour(now + 3 * HOUR, { rain: 1, liquidRain: 0, snowfall: 1, weatherCode: 73 })
+  ] } };
+  const rainSteps = Array.from({ length: 36 }, (_, index) => ({ intervalStart: now + index * step,
+    intervalEnd: now + (index + 1) * step, precipitation: .1 })).filter((_, index) => index !== 3);
+  const result = width => {
+    const html = piafChartMarkup({ rainSteps }, { now, width, compact: true, precipitationOnly: true, dashboard });
+    const rain = [...html.matchAll(/<rect class="piaf-rain-bar piaf-phase-rain" x="([^"]+)"[^>]*width="([^"]+)"[^>]*data-rain-amount="([^"]+)"/g)];
+    const snow = [...html.matchAll(/data-snow-amount="([^"]+)"/g)];
+    const plotWidth = width - 88 - 30;
+    const holeStart = 88 + plotWidth * 3 / 36;
+    const holeEnd = 88 + plotWidth * 4 / 36;
+    assert.ok(rain.every(([, x, span]) => +x + +span <= holeStart + 1e-9 || +x >= holeEnd - 1e-9));
+    assert.ok(Math.abs(rain.reduce((sum, bar) => sum + Number(bar[3]), 0) - 1.1) < 1e-9);
+    assert.ok(Math.abs(snow.reduce((sum, bar) => sum + Number(bar[1]), 0) - 2) < 1e-9);
+    return [rain.length, (html.match(/class="piaf-snow-bar"/g) || []).length];
+  };
+  assert.deepEqual([1500, 900, 720, 390, 320].map(result), [[11, 24], [6, 12], [4, 8], [3, 4], [2, 2]]);
+});
+
+test('le détail 3 h déplie les pas de cinq minutes sur une largeur réduite', () => {
+  const hours = [
+    hour(now + HOUR, { rain: 2, liquidRain: 2, snowfall: 0, weatherCode: 61 }),
+    hour(now + 2 * HOUR, { rain: 2, liquidRain: 1, snowfall: .7, weatherCode: 73 }),
+    hour(now + 3 * HOUR, { rain: 2, liquidRain: 1, snowfall: .7, weatherCode: 73 })
+  ];
+  const rainSteps = Array.from({ length: 36 }, (_, index) => ({ intervalStart: now + index * 300000,
+    intervalEnd: now + (index + 1) * 300000, precipitation: .1 }));
+  const options = { now, width: 900, compact: true, compactRain: true, precipitationOnly: true, dashboard: { arome: { hours } } };
+  const automatic = piafChartMarkup({ rainSteps }, options);
+  const detailed = piafChartMarkup({ rainSteps }, { ...options, showHourly: true });
+  const wide = piafChartMarkup({ rainSteps }, { ...options, width: 1500, showHourly: true });
+  assert.match(automatic, /<input type="checkbox">afficher le détail par 5 min/);
+  assert.match(detailed, /<input type="checkbox" checked>afficher le détail par 5 min/);
+  assert.match(detailed, /piaf-diagram-expanded/);
+  assert.doesNotMatch(wide, /day-width-control|piaf-diagram-expanded/);
+  assert.equal((detailed.match(/class="piaf-rain-bar /g) || []).length, 36);
+  assert.equal((detailed.match(/class="piaf-snow-bar"/g) || []).length, 24);
+  for (const html of [automatic, detailed, wide]) {
+    assert.match(html, /class="rain-bar-drop"/);
+    assert.doesNotMatch(html, /class="piaf-rain-bar piaf-phase-mixed"[^>]*>\s*<path class="rain-bar-drop"/);
+  }
 });
 
 

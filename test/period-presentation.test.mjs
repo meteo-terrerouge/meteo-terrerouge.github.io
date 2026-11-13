@@ -208,6 +208,17 @@ test('le cumul quotidien de neige fraîche apparaît en cm à côté de la pluie
   }
 });
 
+test('la vignette montre la neige seule sans goutte barrée et conserve la goutte les jours secs', () => {
+  for (const snowfall of [0, .5]) {
+    const hours = alertHours(24, snowfall / 2, { liquidRain: 0, snowfall, weatherCode: snowfall ? 73 : 3 });
+    const input = { dashboard: { arome: { hours } }, week: {}, now, timezone: 'UTC' };
+    const [day] = dailyRowsTools.buildDailyRows(input);
+    const html = compactCard(day, input);
+    assert.equal(html.includes('class="rain-reading snow-total"'), snowfall > 0);
+    assert.equal(html.includes('class="dry-slash"'), snowfall === 0);
+  }
+});
+
 test('les vignettes mettent en évidence chaque mesure dès le jaune', () => {
   const midnight = Date.parse('2026-10-24T00:00:00+02:00');
   for (const { rain, gust, tone, metrics } of [

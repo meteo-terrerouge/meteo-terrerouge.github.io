@@ -87,3 +87,43 @@
 13/11/2026 19:50 — v0.065 — Goutte bleue pleine, centrée verticalement sur le chiffre du cumul de pluie dans les vignettes.
 
 13/11/2026 19:51 — v0.066 — Dans les vignettes, le vent moyen inférieur à 20 km/h est masqué à côté des rafales, sauf avertissement lié au vent moyen.
+
+13/11/2026 22:27 — v0.067 — Températures centrées au-dessus des cumuls de pluie et de neige sur les vignettes sans vent, avec assez de place pour les flèches de tendance.
+
+13/11/2026 22:30 — v0.068 — Deux lignes dès trois valeurs chiffrées dans les vignettes et retrait de la goutte barrée les jours avec neige seule.
+
+13/11/2026 22:33 — v0.069 — Les températures min/max comptent comme un seul bloc et restent sur la même ligne qu’un cumul unique de pluie ou de neige.
+
+13/11/2026 22:37 — v0.070 — Sur les vignettes à deux lignes avec neige et pluie, la neige passe sous les températures, à gauche, et la pluie à droite.
+
+13/11/2026 22:40 — v0.071 — La grille réduit plus tôt le nombre de colonnes pour donner davantage de largeur aux vignettes.
+
+13/11/2026 22:44 — v0.072 — Fond bleu-gris clair derrière les chiffres des vignettes sans avertissement.
+
+13/11/2026 22:47 — v0.073 — L’option « afficher le détail par heure » est alignée à gauche dans le graphique du jour.
+
+13/11/2026 22:52 — v0.074 — La frise 3 h résume la météo en un à trois pictogrammes avec les horaires de chaque étape.
+
+13/11/2026 22:59 — v0.075 — Le résumé en pictogrammes est séparé du diagramme des précipitations, qui a sa propre échelle horaire.
+
+13/11/2026 23:06 — v0.076 — Le bulletin hebdomadaire affiche uniquement le diagramme pluie/neige dans la section « Précipitations les 3 prochaines h », avec une goutte barrée sur chaque créneau sec.
+
+13/11/2026 23:11 — v0.077 — Le diagramme 3 h laisse place à « Pas de précipitation les 3 prochaines heures. » quand toute la période est annoncée sèche.
+
+13/11/2026 23:14 — v0.078 — Le fond des chiffres remplit la vignette jusqu’aux bords arrondis.
+
+13/11/2026 23:17 — v0.079 — Titre « Précipitations les 3 prochaines heures », en-tête assorti aux vignettes et trait au-dessus des chiffres sur toute leur largeur.
+
+13/11/2026 23:20 — v0.080 — Titre des précipitations à gauche et retrait du cadre intérieur autour du diagramme 3 h.
+
+13/11/2026 23:21 — v0.081 — Le titre du diagramme 3 h est légèrement décalé à droite pour s’aligner sur le libellé de l’échelle.
+
+13/11/2026 23:23 — v0.082 — Le diagramme 3 h regroupe plus tôt les barres de pluie et de neige quand la largeur diminue, en conservant les cumuls et les transitions.
+
+13/11/2026 23:30 — v0.083 — Option « afficher le détail par heure » sur le diagramme 3 h et retrait des gouttes décoratives quand les barres de pluie et de neige se superposent.
+
+13/11/2026 23:37 — v0.084 — Quand la largeur impose un regroupement, la case déplie le diagramme 3 h au pas de 5 minutes dans une zone défilable.
+
+13/11/2026 23:40 — v0.085 — La frise 24 h reprend le bandeau et les marges de la frise 3 h, avec un graphique sans cadre intérieur.
+
+13/11/2026 23:43 — v0.086 — La colonne des commandes de la frise 24 h commence sous la légende, à la hauteur du graphique.
