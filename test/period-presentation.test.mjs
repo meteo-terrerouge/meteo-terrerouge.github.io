@@ -225,13 +225,28 @@ test('les vignettes mettent en évidence chaque mesure dès le jaune', () => {
     const html = compactCard(day, input);
     assert.equal(html.match(/data-alert="([^"]+)"/)?.[1], tone);
     assert.deepEqual([...html.matchAll(/class="([^" ]+) alert-value"/g)].map(match => match[1]), metrics);
-    assert.match(html, new RegExp('Vent moyen jusqu’à 10 km/h[\\s\\S]*?class="wind-divider"[^>]*>/[\\s\\S]*?Rafales jusqu’à ' + gust + ' km/h'));
-    assert.equal([...html.matchAll(/class="gust-unit"/g)].length, 2);
+    assert.match(html, new RegExp('Rafales jusqu’à ' + gust + ' km/h'));
+    assert.doesNotMatch(html, /Vent moyen jusqu’à|class="wind-divider"/);
+    assert.equal([...html.matchAll(/class="gust-unit"/g)].length, 1);
     if (metrics.includes('rain-amount')) {
       assert.match(html, /class="rain-reading"[^>]*><span class="rain-amount alert-value">/);
     }
     if (rain > 0) assert.doesNotMatch(html, /class="rain-drop"/);
     else assert.match(html, /class="rain-drop"[\s\S]*?class="dry-slash"/);
+  }
+});
+
+test('les vignettes ajoutent le vent moyen aux rafales à partir de 20 km/h', () => {
+  const midnight = Date.parse('2026-10-24T00:00:00+02:00');
+  for (const windSpeed of [19.9, 20]) {
+    const hours = alertHours(24, 0, { windSpeed, windGust: 53 }).map((hour, index) =>
+      ({ ...hour, time: new Date(midnight + index * HOUR).toISOString() }));
+    const input = { dashboard: { arome: { hours } }, week: {}, now: midnight, timezone: 'Europe/Paris' };
+    const [day] = dailyRowsTools.buildDailyRows(input);
+    const html = compactCard(day, input);
+    assert.match(html, /Rafales jusqu’à 53 km\/h/);
+    assert.equal(html.includes('Vent moyen jusqu’à 20 km/h'), windSpeed === 20);
+    assert.equal(html.includes('class="wind-divider"'), windSpeed === 20);
   }
 });
 

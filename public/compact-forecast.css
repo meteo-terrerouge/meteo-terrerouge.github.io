@@ -35,7 +35,7 @@
   .compact-forecast .pictogram .rain-layer { transform: translateY(9%); }
   .compact-forecast .pictogram .wind-layer { transform: translateY(12%); }
   .forecast-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 4px; min-height: 43px; font-size: .7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.12; }
-  .compact-forecast .card-metrics { margin: 0 8px; padding: 7px 0 8px; border-top: 1px solid #e1eaee; }
+  .compact-forecast .card-metrics { --metric-divider: #e1eaee; margin: 0 8px; padding: 7px 0 8px; border-top: 1px solid var(--metric-divider); }
   .forecast-metrics :is(.min, .max, .gust-speed, .rain-amount) { font-size: calc(1em + .02rem); }
   .forecast-metrics .alert-value { font-size: calc(1.3 * (1em + .02rem)); font-weight: 900; }
   .compact-forecast .card-metrics:has(.gust-total) { margin-inline: 5px; gap: 2px; }
@@ -46,6 +46,97 @@
   .forecast-metrics .rain-total { position: relative; z-index: 2; grid-column: 3; justify-self: end; max-width: 100%; color: #21617e; }
   .compact-forecast .daily-precipitation-totals { position: relative; z-index: 2; grid-column: 3; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 2px .35em; }
   .compact-forecast .daily-precipitation-totals > * { flex: none; }
+  .compact-forecast .card-metrics:not(:has(.gust-total)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 0;
+    background: linear-gradient(var(--metric-divider), var(--metric-divider)) center / 1px calc(100% - 12px) no-repeat;
+
+    > .daily-precipitation-totals { grid-column: 2; }
+  }
+  .compact-forecast .card-metrics:has(.snow-total):not(:has(.gust-total)) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 0;
+    background:
+      linear-gradient(var(--metric-divider), var(--metric-divider)) calc(100% / 3) center / 1px calc(100% - 12px) no-repeat,
+      linear-gradient(var(--metric-divider), var(--metric-divider)) calc(200% / 3) center / 1px calc(100% - 12px) no-repeat;
+
+    > .daily-precipitation-totals {
+      display: grid;
+      grid-column: 2 / -1;
+      grid-template-columns: subgrid;
+      align-items: center;
+      column-gap: 0;
+    }
+    .rain-total { grid-column: 1; }
+  }
+  .compact-forecast .card-metrics:has(.gust-total) {
+    position: relative;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: center;
+    gap: 5px 0;
+    padding-block: 2px 3px;
+    background: linear-gradient(var(--metric-divider), var(--metric-divider)) center top 3px / 1px calc(50% - 4px) no-repeat;
+
+    > .gust-total { grid-area: 2 / 1 / 3 / -1; }
+    > .daily-precipitation-totals { grid-area: 1 / 2; }
+    &::after {
+      content: '';
+      position: absolute;
+      grid-area: 2 / 1 / 3 / -1;
+      inset: -3px 0 auto;
+      border-top: 1px solid var(--metric-divider);
+    }
+  }
+  .compact-forecast .card-metrics:has(.gust-total):has(.rain-total .rain-unit):has(.snow-total) {
+    background-position: center;
+    background-size: 1px calc(100% - 8px);
+
+    > .gust-total { grid-area: 1 / 2; }
+    > .daily-precipitation-totals {
+      display: grid;
+      grid-column: 1 / -1;
+      grid-row: 2;
+      grid-template-columns: subgrid;
+      align-items: center;
+      column-gap: 0;
+    }
+    .rain-total { grid-column: 1; }
+  }
+
+  .compact-forecast .card-metrics {
+    :is(.temperatures, .gust-total, .rain-total, .snow-total) {
+      justify-self: center;
+      align-items: center;
+      flex-wrap: nowrap;
+    }
+    > .daily-precipitation-totals { justify-content: center; align-items: center; }
+
+    :is(.temperatures, .gust-total, .rain-total, .snow-total)::before {
+      content: '';
+      flex: none;
+      width: 1.05em;
+      height: 1.05em;
+      margin-inline-end: .18em;
+      background: currentColor;
+      mask: var(--metric-icon) center / contain no-repeat;
+    }
+    :is(.temperatures, .gust-total)::before { color: #596f7c; }
+    .temperatures::before {
+      --metric-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M10 4a2 2 0 0 1 4 0v9.2a4 4 0 1 1-4 0V4ZM12 7v9'/%3E%3C/svg%3E");
+    }
+    .gust-total::before {
+      --metric-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M3 7.5h10.5c3.7 0 3.7-4.5.7-4.5-1.3 0-2.2.7-2.6 1.7M3 12h15c3.8 0 3.8 5 .5 5-1.5 0-2.4-.8-2.8-1.8M3 16.5h7'/%3E%3C/svg%3E");
+    }
+    .rain-total::before {
+      color: #258bc0;
+      --metric-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath transform='translate(0 1)' d='M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z'/%3E%3C/svg%3E");
+    }
+    .rain-total .rain-reading { align-items: center; flex-wrap: nowrap; }
+    .rain-total:not(:has(.rain-unit))::before { content: none; }
+    .snow-total::before {
+      --metric-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 2v20M3.34 7l17.32 10M3.34 17 20.66 7M9 4l3 3 3-3M9 20l3-3 3 3M3.5 10.5l4.1-1.1-1.1-4.1M17.5 18.7l-1.1-4.1 4.1-1.1M6.5 18.7l1.1-4.1-4.1-1.1M20.5 10.5l-4.1-1.1 1.1-4.1'/%3E%3C/svg%3E");
+    }
+  }
   .compact-forecast .snow-total { color: #167d92; white-space: nowrap; }
   .compact-forecast .rain-total { cursor: pointer; }
   .forecast-metrics .rain-drop { width: 14px; height: 14px; flex: none; fill: #258bc0; }

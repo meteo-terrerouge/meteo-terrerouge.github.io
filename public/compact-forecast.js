@@ -2,6 +2,7 @@ const temperature = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
 const rainfall = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
 const roundedRainfall = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
 const HOUR = 3600000;
+const notableMeanWind = 20;
 const skyLabels = ['Dégagé', 'Peu nuageux', 'Éclaircies', 'Nuageux', 'Très nuageux', 'Couvert'];
 const skyBand = cloud => [5, 25, 50, 75, 90, Infinity].findIndex(limit => cloud <= limit);
 const snowPhases = ['snow', 'snow-unknown', 'mixed'];
@@ -225,6 +226,8 @@ function card(day, options) {
     .flatMap(hour => dailyPeriodAlertSummaries(alertSources, day.date, at(hour), at(hour + 6), now));
   const dailyTone = dailyRainAlertTone(alertSources, day, now);
   const { tone, causes } = forecastSlotAlertTone(alerts.map(item => ({ ...item, wind: item.windSpeed, gust: item.windGust })), dailyTone, true);
+  const meanWind = totals.windSpeed ?? causes.wind;
+  const visibleMeanWind = meanWind >= notableMeanWind || causes.wind ? meanWind : null;
   const alert = tone ? ` data-alert="${tone}"${dailyTone ? ` data-daily-rain-alert="${dailyTone}"` : ''} aria-label="${dayLabel} ${number} ${month}. ${alertLabels[tone]}."` : '';
   return `<li><article class="card${split || showLull ? ' card-transition' : ''}${day.trend ? ' card-outlook' : ''}" data-pictograms="${showLull ? 3 : split ? 2 : 1}"${alert}>
     <h2 class="card-heading">${day.trend ? '<span class="outlook-label"><span>Tendance</span></span>' : ''}<time datetime="${day.date}"><span>${dayLabel}</span><small>${number} ${month}</small></time></h2>
@@ -234,7 +237,7 @@ function card(day, options) {
         <span class="temperature-values" role="group" aria-label="Température minimale ${formatTemp(totals.temperatureMin)}, maximale ${formatTemp(totals.temperatureMax)}"><span class="min" aria-hidden="true">${formatTemp(totals.temperatureMin)}</span><span class="temperature-divider" aria-hidden="true">/</span><span class="max" aria-hidden="true">${formatTemp(totals.temperatureMax)}</span></span>
         ${trend(meanTemperatures, 1, 'temperature', 'Tendance de la température moyenne')}
       </div>
-      ${options.windSummaryMarkup(totals.windSpeed ?? causes.wind, totals.windGust ?? causes.gust, causes)}
+      ${options.windSummaryMarkup(visibleMeanWind, totals.windGust ?? causes.gust, causes)}
       <div class="daily-precipitation-totals">${dailyRainMarkup(totals, dailyHistory, ['rain', 'rain3h', 'rainRate'].some(metric => metric in causes))}${dailySnowMarkup(day, totals, dailyRainBars)}</div>
     </div>
     <button type="button" class="card-chart-hit" data-date="${day.date}" data-title="${chartTitle}" aria-haspopup="dialog" aria-label="Ouvrir le graphique du ${number} ${month}"></button>

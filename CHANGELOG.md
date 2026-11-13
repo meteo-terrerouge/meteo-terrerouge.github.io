@@ -71,3 +71,19 @@
 13/11/2026 18:05 — v0.057 — Vignettes quotidiennes avec accalmie entre deux épisodes, cumul de neige fraîche en cm à côté de la pluie et goutte barrée seule sur la frise 3 h par temps sec.
 
 13/11/2026 18:56 — v0.058 — La frise 3 h masque le cumul lorsque les données PIAF sont indisponibles.
+
+13/11/2026 19:11 — v0.059 — Les vignettes répartissent les températures, le vent, la pluie et la neige sur deux lignes quand les quatre sont chiffrés.
+
+13/11/2026 19:14 — v0.060 — Les quatre valeurs des vignettes à deux lignes sont centrées dans deux colonnes alignées.
+
+13/11/2026 19:16 — v0.061 — Petits symboles météo et séparateurs horizontal et vertical entre les quatre valeurs des vignettes à deux lignes.
+
+13/11/2026 19:24 — v0.062 — Trois cases de même largeur sur une ligne, séparateurs assortis et centrage des symboles avec leurs valeurs sur une ou deux lignes.
+
+13/11/2026 19:40 — v0.063 — Vent centré seul sur la seconde ligne des vignettes à trois groupes avec vent, et séparateurs présents aussi sur les vignettes à deux cases.
+
+13/11/2026 19:45 — v0.064 — Goutte bleue et symbole du vent dans le même gris neutre que le thermomètre sur les vignettes.
+
+13/11/2026 19:50 — v0.065 — Goutte bleue pleine, centrée verticalement sur le chiffre du cumul de pluie dans les vignettes.
+
+13/11/2026 19:51 — v0.066 — Dans les vignettes, le vent moyen inférieur à 20 km/h est masqué à côté des rafales, sauf avertissement lié au vent moyen.
