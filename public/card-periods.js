@@ -153,12 +153,14 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
     if (overnight.completeRain && eveningWeather.completeRain && (newStorm || newPhase || newRain)) periods.push(overnight);
   }
 
+  const stepsAt = time => total.intervals.filter(interval => interval.start <= time && interval.end >= time);
   const precise = time => {
-    const steps = total.intervals.filter(interval => interval.start <= time && interval.end >= time);
+    const steps = stepsAt(time);
     return leadDays < 4 && steps.length > 0 && steps.every(interval =>
       interval.nativeEnd - interval.nativeStart <= HOUR && (leadDays < 2 || !interval.interpolated));
   };
   const hourLabel = time => clock.format(time).replace(':00', ' h').replace(':', ' h ');
+  const afternoonPart = time => time < at(15) ? 'début' : time < at(17) ? 'milieu' : 'fin';
   return periods.map((period, index) => {
     const { start: from, end: to } = period;
     const night = Math.min(to, sunset) - Math.max(from, sunrise) < Math.min(HOUR, (to - from) / 2);
@@ -168,13 +170,19 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
     else if (from >= evening && to === day.end && (!precise(from) || from === evening)) label = 'Soir';
     else if (to === at(12)) label = 'Matin';
     else if (from === at(12) && to === day.end) label = 'Reste de la journée';
+    else if (index === 0 && from < at(12) && to > at(13) && to < evening && period.rain > 0
+      && periods[1].phase === 'dry' && periods[1].end === day.end && leadDays <= 5
+      && clock.format(to).endsWith(':00') && stepsAt(to).every(interval => interval.nativeEnd - interval.nativeStart <= HOUR)) {
+      label = `Jusqu’à ${hourLabel(to)}`;
+    }
     else if (index === 0 && precise(to) && to < day.end) label = `Avant ${hourLabel(to)}`;
     else if (index > 0 && from <= sunrise + HOUR && to === day.end && !precise(from)) label = 'En journée';
     else if (index > 0 && to === day.end && period.phase === 'dry') label = 'Reste de la journée';
     else if (index > 0 && precise(from) && to === day.end) label = `Dès ${hourLabel(from)}`;
-    else if (index > 0 && from <= sunrise + HOUR && to >= sunset - HOUR && to < day.end) label = 'En journée';
+    else if (index > 0 && from <= sunrise + HOUR && to >= evening && to < day.end) label = 'En journée';
     else if (index > 0 && to < day.end && precise(from) && precise(to)) label = `${hourLabel(from)} – ${hourLabel(to)}`;
     else if (to <= at(13)) label = 'Matin';
+    else if (from < at(12) && to < evening) label = `Jusqu’en ${afternoonPart(to)} d’après-midi`;
     else if (to === day.end && from >= at(15)) label = 'Fin de journée';
     else if (to === day.end && from >= at(12)) label = 'Reste de la journée';
     else if (from >= evening) label = 'Soir';

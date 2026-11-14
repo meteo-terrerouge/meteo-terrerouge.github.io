@@ -374,6 +374,11 @@ test('les horaires deviennent des moments de la journée à longue échéance, e
     Array.from(render(15, 13).matchAll(/class="period">([^<]+)/g), match => match[1]),
     ['Matin', 'Reste de la journée']
   );
+  for (const [end, part] of [[14, 'début'], [16, 'milieu'], [17, 'fin']]) {
+    const labelsAt = lead => Array.from(render(lead, end).matchAll(/class="period">([^<]+)/g), match => match[1]);
+    assert.deepEqual(labelsAt(5), [`Jusqu’à ${end} h`, 'Reste de la journée']);
+    assert.deepEqual(labelsAt(15), [`Jusqu’en ${part} d’après-midi`, 'Reste de la journée']);
+  }
   for (const lead of [2, 15]) {
     const html = render(lead, 19);
     assert.doesNotMatch(html, /Avant 19 h|Reste de la journée/);
