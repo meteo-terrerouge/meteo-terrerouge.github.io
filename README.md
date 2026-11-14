@@ -5,6 +5,8 @@ Utilise les API de données ouvertes de Météo-France et Open-Meteo pour les te
 La collecte des API météo peut utiliser GitHub Actions ou un serveur personnel.
 Le site peut être hébergé sur GitHub Pages ou sur un autre hébergement, dont ce serveur.
 
+Ce projet est utilisé par [Météo Terre Rouge](https://meteo-terrerouge.github.io/).
+
 ## Prérequis
 
 1. Sur le [portail API Météo-France](https://portail-api.meteofrance.fr/web/), souscrire aux API suivantes, puis générer un jeton de type **API Key** :
