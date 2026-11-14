@@ -140,11 +140,11 @@ test('les flèches des vignettes utilisent les cycles publiés même sans histor
   assert.doesNotMatch(render({ ...second, forecastHistory: fourth.forecastHistory }), /class="trend-arrow /);
 });
 
-test('la vignette compte le cumul de pluie liquide et la frise son intensité', () => {
+test('la vignette et la frise utilisent les mêmes niveaux d’intensité pour les pictogrammes', () => {
   const midnight = Date.parse('2026-10-24T00:00:00+02:00');
   for (const { rain, liquidRain, snowfall, cardDrops } of [
-    { rain: 1.8, liquidRain: 1.8, snowfall: 0, cardDrops: 5 },
-    { rain: 2.5, liquidRain: .6, snowfall: 1, cardDrops: 3 },
+    { rain: 1.8, liquidRain: 1.8, snowfall: 0, cardDrops: 1 },
+    { rain: 2.5, liquidRain: .6, snowfall: 1, cardDrops: 1 },
   ]) {
     const hours = alertHours(24, rain, { liquidRain, snowfall }).map((hour, index) =>
       ({ ...hour, time: new Date(midnight + index * HOUR).toISOString() }));
@@ -157,7 +157,7 @@ test('la vignette compte le cumul de pluie liquide et la frise son intensité', 
   }
 });
 
-test('chaque pictogramme utilise le cumul de son propre créneau sur une vignette à deux conditions', () => {
+test('chaque pictogramme utilise l’intensité de son propre créneau, y compris en soirée', () => {
   const midnight = Date.parse('2026-10-24T00:00:00+02:00');
   const hours = alertHours(24).map((hour, index) => {
     const rain = index > 12 ? 3 : 1;
@@ -166,7 +166,76 @@ test('chaque pictogramme utilise le cumul de son propre créneau sur une vignett
   const input = { dashboard: { arome: { hours } }, week: {}, now: midnight, timezone: 'Europe/Paris' };
   const [day] = dailyRowsTools.buildDailyRows(input);
   const html = compactCard(day, input);
-  assert.match(html, /class="period">Matin<[\s\S]*?calque-pluie-2\.svg[\s\S]*?class="period">Après-midi<[\s\S]*?calque-pluie-4\.svg/);
+  assert.match(html, /class="period">Matin<[\s\S]*?calque-pluie-1\.svg[\s\S]*?class="period">Reste de la journée<[\s\S]*?calque-pluie-2\.svg/);
+});
+
+test('un ciel plus couvert après 18 h ne crée pas un créneau si le temps reste sec', () => {
+  const midnight = Date.parse('2026-11-21T00:00:00+01:00');
+  const hours = alertHours(24).map((hour, index) => ({ ...hour,
+    time: new Date(midnight + index * HOUR).toISOString(), cloudCover: index < 18 ? 20 : 100 }));
+  const input = { dashboard: { arome: { hours } }, week: {}, now: midnight - HOUR, timezone: 'Europe/Paris' };
+  const day = dailyRowsTools.buildDailyRows(input).find(day => day.start === midnight);
+  const html = compactCard(day, input);
+  assert.match(html, /data-pictograms="1"[\s\S]*cloud-day-1/);
+  assert.doesNotMatch(html, /class="period"/);
+});
+
+test('le résumé distingue une éclaircie durable en journée et ignore la nuit sèche avant la pluie', () => {
+  const midnight = Date.parse('2026-09-03T00:00:00+02:00');
+  const render = rainStartsAt => {
+    const hours = alertHours(24).map((hour, index) => {
+      const rain = index > rainStartsAt ? .4 : 0;
+      return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain,
+        liquidRain: rain, cloudCover: index < 12 || rain ? 100 : 15 };
+    });
+    const input = { dashboard: { arome: { hours } }, week: {}, now: midnight - HOUR, timezone: 'Europe/Paris',
+      sunTimesForDate: () => ({ sunrise: new Date(midnight + 7 * HOUR), sunset: new Date(midnight + 20 * HOUR) }) };
+    const day = dailyRowsTools.buildDailyRows(input).find(day => day.start === midnight);
+    return compactCard(day, input);
+  };
+  assert.match(render(24), /class="period">Matin<[\s\S]*cloud-day-5[\s\S]*class="period">Reste de la journée<[\s\S]*cloud-day-1/);
+  assert.match(render(6), /data-pictograms="1"[\s\S]*calque-pluie-1\.svg/);
+  assert.match(render(11), /data-pictograms="2"[\s\S]*temps sec[\s\S]*calque-pluie-1\.svg/);
+});
+
+test('la pluie mêlée de neige qui se poursuit en soirée partage un seul pictogramme', () => {
+  const date = '2026-11-28';
+  const midnight = Date.parse(date + 'T00:00:00+01:00');
+  const render = snowUntil => {
+    const hours = alertHours(24).map((hour, index) => {
+      const snowy = index > 1 && index <= snowUntil;
+      const rain = index > 1 && index <= snowUntil ? .1 : 0;
+      return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain,
+        liquidRain: rain, snowfall: snowy ? .07 : 0, weatherCode: snowy ? 85 : rain ? 51 : 3 };
+    });
+    const input = { dashboard: { openMeteo: { hours } }, week: {}, now: midnight - 14 * 24 * HOUR, timezone: 'Europe/Paris',
+      sunTimesForDate: () => ({ sunrise: new Date(midnight + 8 * HOUR), sunset: new Date(midnight + 17 * HOUR) }) };
+    const day = dailyRowsTools.buildDailyRows(input).find(day => day.date === date);
+    return compactCard(day, input);
+  };
+  assert.match(render(19), /data-pictograms="1"[\s\S]*?Pluie et neige[\s\S]*?calque-neige-1\.svg/);
+  assert.match(render(18), /class="period">Soir<[\s\S]*?temps sec/);
+});
+
+test('le pictogramme après minuit indique le jour de la neige, distinct du cumul de la veille', () => {
+  const date = '2026-11-27';
+  const midnight = Date.parse(date + 'T00:00:00+01:00');
+  const dayEnd = midnight + 24 * HOUR;
+  const hours = alertHours(30).map((hour, index) => {
+    const snow = index > 25;
+    return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain: snow ? .2 : 0,
+      liquidRain: snow ? .1 : 0, snowfall: snow ? .07 : 0, weatherCode: snow ? 85 : 3 };
+  });
+  const dashboard = { openMeteo: { hours } }, week = {};
+  const input = { dashboard, week, now: midnight - HOUR, timezone: 'Europe/Paris' };
+  const day = dailyRowsTools.buildDailyRows(input).find(day => day.date === date);
+  const html = compactCard(day, input);
+  assert.match(html, /class="period">Nuit \(28 nov\.\)<[\s\S]*calque-neige-1\.svg/);
+  assert.doesNotMatch(html, /class="rain-total"|class="dry-slash"/);
+  assert.doesNotMatch(html, /class="rain-reading snow-total"/);
+  const outlook = compactCard({ ...day, trend: true }, input);
+  assert.match(outlook, /data-pictograms="1"[\s\S]*temps sec/);
+  assert.doesNotMatch(outlook, /Nuit \(|calque-neige-/);
 });
 
 test('la vignette distingue une accalmie autour de midi des épisodes avant et après', () => {
@@ -184,10 +253,10 @@ test('la vignette distingue une accalmie autour de midi des épisodes avant et a
   const html = render();
   assert.match(html, /data-pictograms="3"/);
   const conditions = html.split('class="condition"').slice(1);
-  assert.match(conditions[0], /Avant 9 h[\s\S]*calque-pluie-3\.svg[\s\S]*calque-orage\.svg/);
-  assert.match(conditions[1], /9 h – 16 h[\s\S]*temps sec/);
+  assert.match(conditions[0], /Avant 9 h[\s\S]*calque-pluie-1\.svg[\s\S]*calque-orage\.svg/);
+  assert.match(conditions[1], /class="period">(?:9 h – 16 h|En journée)[\s\S]*temps sec/);
   assert.doesNotMatch(conditions[1], /calque-(pluie|orage)/);
-  assert.match(conditions[2], /Dès 16 h[\s\S]*calque-pluie-3\.svg[\s\S]*class="rain-amount">20,8<\/span>/);
+  assert.match(conditions[2], /Dès 16 h[\s\S]*calque-pluie-1\.svg[\s\S]*class="rain-amount">20,8<\/span>/);
   assert.doesNotMatch(render(true), /data-pictograms="3"/);
 });
 
@@ -206,7 +275,7 @@ test('les vignettes et la frise distinguent le sec, les traces et la pluie chiff
       const chart = dailyRowsTools.dailyChartMarkup(day, { ...input, compactRain: true, width: 1800 });
       assert.equal(card.includes('calque-traces-pluie.svg'), amount === .007);
       assert.equal(card.includes('class="rain-amount">gouttes</span>'), amount === .007);
-      assert.equal(card.includes('class="dry-slash"'), amount === 0);
+      assert.doesNotMatch(card, /class="dry-slash"/);
       assert.equal(card.includes('Reste de la journée'), amount > 0);
       if (amount) assert.match(card, /Reste de la journée[\s\S]*?temps sec/);
       assert.equal(chart.includes('day-rain-trace-point'), amount === .007);
@@ -231,6 +300,24 @@ test('une accalmie de dimanche reste visible hors de midi', () => {
   const html = compactCard(day, input);
   assert.match(html, /data-pictograms="3"/);
   assert.match(html, /14 h – 19 h[\s\S]*?temps sec[\s\S]*?Dès 19 h/);
+});
+
+test('une heure d’orage en fin de nuit laisse visibles l’accalmie puis la pluie du soir', () => {
+  const midnight = Date.parse('2026-11-15T00:00:00+01:00');
+  const hours = alertHours(24).map((hour, index) => {
+    const rain = index > 0 && index <= 5 ? 3 : index >= 22 ? 2.7 : 0;
+    return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain,
+      stormSignal: index < 7 || index >= 22 };
+  });
+  const input = { dashboard: { arome: { hours } }, now: midnight - HOUR, timezone: 'Europe/Paris',
+    sunTimesForDate: () => ({ sunrise: new Date(midnight + 8 * HOUR), sunset: new Date(midnight + 17 * HOUR) }) };
+  const day = dailyRowsTools.buildDailyRows(input).find(day => day.start === midnight);
+  const conditions = compactCard(day, input).split('class="condition"').slice(1);
+  assert.equal(conditions.length, 3);
+  assert.match(conditions[0], /class="period">Nuit<[\s\S]*calque-pluie-2\.svg/);
+  assert.match(conditions[1], /En journée[\s\S]*temps sec/);
+  assert.doesNotMatch(conditions[1], /calque-orage/);
+  assert.match(conditions[2], /Dès 21 h[\s\S]*calque-pluie-2\.svg/);
 });
 
 test('la vignette affiche le ciel de jour avant 13 h et sépare les premières gouttes du renforcement', () => {
@@ -283,10 +370,15 @@ test('les horaires deviennent des moments de la journée à longue échéance, e
   };
   assert.match(render(1, 7), /class="period">Nuit</);
   assert.match(render(1, 19), /Avant 19 h/);
+  assert.deepEqual(
+    Array.from(render(15, 13).matchAll(/class="period">([^<]+)/g), match => match[1]),
+    ['Matin', 'Reste de la journée']
+  );
   for (const lead of [2, 15]) {
     const html = render(lead, 19);
     assert.doesNotMatch(html, /Avant 19 h|Reste de la journée/);
-    assert.match(html, /class="period">Soir</);
+    if (lead === 2) assert.match(html, /class="period">Soir</);
+    else assert.match(html, /data-pictograms="1"/);
   }
   const brief = render(1, 1);
   assert.match(brief, /data-pictograms="1"/);
@@ -311,14 +403,14 @@ test('le cumul quotidien de neige fraîche apparaît en cm à côté de la pluie
   }
 });
 
-test('la vignette montre la neige seule sans goutte barrée et conserve la goutte les jours secs', () => {
+test('la vignette omet le cumul de pluie nul avec ou sans neige', () => {
   for (const snowfall of [0, .5]) {
     const hours = alertHours(24, snowfall / 2, { liquidRain: 0, snowfall, weatherCode: snowfall ? 73 : 3 });
     const input = { dashboard: { arome: { hours } }, week: {}, now, timezone: 'UTC' };
     const [day] = dailyRowsTools.buildDailyRows(input);
     const html = compactCard(day, input);
     assert.equal(html.includes('class="rain-reading snow-total"'), snowfall > 0);
-    assert.equal(html.includes('class="dry-slash"'), snowfall === 0);
+    assert.doesNotMatch(html, /class="dry-slash"|class="rain-total"/);
   }
 });
 
@@ -345,8 +437,8 @@ test('les vignettes mettent en évidence chaque mesure dès le jaune', () => {
     if (metrics.includes('rain-amount')) {
       assert.match(html, /class="rain-reading"[^>]*><span class="rain-amount alert-value">/);
     }
-    if (rain > 0) assert.doesNotMatch(html, /class="dry-slash"/);
-    else assert.match(html, /class="rain-drop"[\s\S]*?class="dry-slash"/);
+    assert.doesNotMatch(html, /class="dry-slash"/);
+    if (rain === 0) assert.doesNotMatch(html, /class="rain-drop"/);
   }
 });
 

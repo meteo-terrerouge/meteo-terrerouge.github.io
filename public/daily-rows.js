@@ -175,7 +175,7 @@ function rainIntensityPictogramLevel(rate) {
   return rate < 2 ? 1 : rate < 10 ? 2 : rate < 30 ? 3 : rate < 60 ? 4 : 5;
 }
 
-function rainPictogramLevelForIntervals(intervals) {
+export function rainPictogramLevelForIntervals(intervals) {
   const rates = intervals.map(interval => {
     const liquid = interval.phase === 'mixed' ? interval.liquidRain
       : interval.phase === 'rain' ? interval.rain : 0;
@@ -390,7 +390,7 @@ export function buildDailyRows({ dashboard = {}, week = {}, now = Date.now(), ti
     const sun = sunTimesForDate?.(new Date((start + end) / 2));
     return { date, midnight, start, end, pastUntil, samples, boundary, contextBefore, contextAfter, rainIntervals,
       ...(chartRainIntervals ? { chartRainIntervals, chartPiafWindow: { start: now, end: now + 3 * HOUR, fetchedAt: dashboard.piaf?.fetchedAt ?? null } } : {}),
-      sunrise: sun?.sunrise?.valueOf(), sunset: sun?.sunset?.valueOf(),
+      sunrise: sun?.sunrise?.valueOf(), sunset: sun?.sunset?.valueOf(), nextNightEnd: localTime(date, 30, timezone),
       sources: sourceLabels, sourceUpdates: sourceLabels.map(name => ({ name, fetchedAt: sourceMetadata[name]?.fetchedAt ?? null })),
       trend: Date.parse(date) - Date.parse(today) >= 8 * 24 * HOUR };
   }).filter(day => day.sources.length);
