@@ -222,12 +222,13 @@ function card(day, options) {
   const snow = dailySnowMarkup(day, totals, dailyRainBars);
   const rain = dailyRainMarkup(totals, dailyHistory, Boolean(dailyTone), rainTone);
   const metricCount = 1 + [wind, snow, rain].filter(Boolean).length;
-  const compactMetrics = metricCount < 3 || (metricCount === 3 && (!wind || !Number.isFinite(visibleMeanWind)));
+  const metricsClass = metricCount === 3 && wind && Number.isFinite(visibleMeanWind)
+    ? ' card-metrics-3-wide' : metricCount <= 3 ? ` card-metrics-${metricCount}` : '';
   const alert = tone ? ` data-alert="${tone}"${dailyTone ? ` data-daily-rain-alert="${dailyTone}"` : ''} aria-label="${dayLabel} ${number} ${month}. ${alertLabels[tone]}."` : '';
   return `<li><article class="card${selectedConditions.length > 1 ? ' card-transition' : ''}${day.trend ? ' card-outlook' : ''}" data-pictograms="${selectedConditions.length}"${alert}>
     <h2 class="card-heading">${day.trend ? '<span class="outlook-label"><span>Tendance</span></span>' : ''}<time datetime="${day.date}"><span>${dayLabel}</span><small>${number} ${month}</small></time></h2>
     <div class="conditions">${conditions}</div>
-    <div class="card-metrics forecast-metrics${compactMetrics ? ` card-metrics-${metricCount}` : ''}">
+    <div class="card-metrics forecast-metrics${metricsClass}">
       <div class="temperatures">
         <span class="temperature-values" role="group" aria-label="Température minimale ${formatTemp(totals.temperatureMin)}, maximale ${formatTemp(totals.temperatureMax)}"><span class="min" aria-hidden="true">${formatTemp(totals.temperatureMin)}</span><span class="temperature-divider" aria-hidden="true">/</span><span class="max" aria-hidden="true">${formatTemp(totals.temperatureMax)}</span></span>
         ${trend(meanTemperatures, 1, 'temperature', 'Tendance de la température moyenne')}

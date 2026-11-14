@@ -149,3 +149,5 @@
 14/11/2026 21:24 — v1.9 — Terre Rouge : les vignettes choisissent jusqu’à trois créneaux utiles pour les activités dehors à partir des données de la frise, sans IA. Les libellés s’adaptent à l’échéance et à la précision des sources. Les cartes « Tendance » couvrent la journée civile. Un flocon s’affiche jusqu’à 5 cm, deux au-delà de 5 cm et trois au-delà de 15 cm. La goutte barrée est retirée des vignettes de la semaine. Trois mesures tiennent sur une ligne lorsque la place le permet. Le vent moyen et les rafales gardent une ligne dédiée lorsqu’ils côtoient un cumul.
 
 14/11/2026 21:45 — v1.10 — Terre Rouge : le premier créneau indique jusqu’à quelle heure la pluie est prévue avant un retour durable au sec dans l’après-midi, si la résolution et l’échéance le permettent.
+
+14/11/2026 21:52 — v1.11 — Ajout d’une page « À propos » consacrée à la lecture du bulletin, aux sources météo et à la vigilance officielle. Sur les vignettes larges, le bloc vent complet peut rejoindre les températures et le cumul sur la même ligne.

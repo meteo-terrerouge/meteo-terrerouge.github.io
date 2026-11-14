@@ -231,6 +231,26 @@
     > .gust-total { order: 1; }
   }
 
+  @container (min-width: 345px) {
+    .compact-forecast .card-metrics.card-metrics-3-wide:has(.gust-total) {
+      display: flex;
+      flex-wrap: wrap;
+      align-content: center;
+      gap: 6px 0;
+      padding-block: 7px 8px;
+      background-image: none;
+
+      &::after { content: none; }
+      > .daily-precipitation-totals { display: contents; }
+      :is(.temperatures, .gust-total, .rain-total, .snow-total) {
+        flex: 1 0 max-content;
+        justify-content: center;
+        padding-inline: 14px;
+      }
+      > .gust-total { order: 1; }
+    }
+  }
+
 .forecast-rows-layout.compact-forecast-layout main,
 .forecast-rows-layout .compact-week { background: #f4f7f8; }
 .forecast-rows-layout .compact-week { min-height: 0; padding: 0; }

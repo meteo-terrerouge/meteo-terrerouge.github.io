@@ -32,7 +32,7 @@ const connectSources = "'self'" + (apiOrigin ? ' ' + apiOrigin : '');
 await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
 await cp(path.join(root, 'public'), target, { recursive: true });
-for (const file of ['index.html', 'service-worker.js']) {
+for (const file of ['index.html', 'about.html', 'service-worker.js']) {
   const content = (await readFile(path.join(target, file), 'utf8'))
     .replaceAll('__RELEASE__', version).replaceAll('__ASSET_VERSION__', version)
     .replaceAll('__CONNECT_SOURCES__', () => escape(connectSources))
