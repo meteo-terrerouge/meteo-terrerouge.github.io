@@ -22,13 +22,9 @@ test('la base se construit seule avec ses ressources locales, sans données ni m
   const journal = await readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
   assert.equal(config.releaseNumber, [...journal.matchAll(/— v(\d+\.\d+) —/g)].at(-1)[1]);
   const headerMeta = html.match(/<div class="header-meta">[\s\S]*?<\/header>/)[0];
-  assert.doesNotMatch(headerMeta, /News/);
+  assert.doesNotMatch(headerMeta, /News|About/);
   assert.ok(headerMeta.includes('<span class="app-version">v' + config.releaseNumber + '</span>'));
-  assert.match(headerMeta, /<a class="about-link" href="about\.html">À propos<\/a>/);
-  const about = await readFile(path.join(root, 'dist/about.html'), 'utf8');
-  assert.match(about, /<title>À propos · Bulletin météo local<\/title>/);
-  assert.doesNotMatch(about, /__SITE_|__ASSET_VERSION__|__RELEASE__/);
-  for (const anchor of ['piaf', 'arome', 'arpege', 'open-meteo', 'vigilance']) assert.ok(about.includes(`id="api-${anchor}"`));
+  assert.doesNotMatch(headerMeta, /<a\b|<button\b|\b(?:href|tabindex)=/);
   assert.equal(config.dataMode, 'static');
   assert.equal(config.apiBase, './');
   for (const feature of ['nowcasting', 'radar', 'pam', 'lightning', 'temperatureNormals']) {
@@ -39,8 +35,8 @@ test('la base se construit seule avec ses ressources locales, sans données ni m
   assert.equal(dashboard.data.latitude, null);
   assert.equal(dashboard.data.longitude, null);
   assert.equal(dashboard.data.arome, null);
-  for (const match of (html + about).matchAll(/(?:src|href)="([^"]+)"/g)) {
-    if (!/^(?:#|https:\/\/)/.test(match[1])) await access(path.join(root, 'dist', match[1].split('?')[0]));
+  for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
+    if (!match[1].startsWith('#')) await access(path.join(root, 'dist', match[1].split('?')[0]));
   }
   const worker = await readFile(path.join(root, 'dist/service-worker.js'), 'utf8');
   const shell = JSON.parse(worker.match(/const shell = (\[[^\n]+?\])\.map/)[1]);
