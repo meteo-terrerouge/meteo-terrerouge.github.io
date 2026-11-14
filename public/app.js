@@ -149,21 +149,29 @@ function forecastSourceAlertTone({ wind = 0, gust = 0, probability = 0, rain = 0
     ...yellowRain, ...windCauses(40, 60) };
   const orangeRain = rainCauses(20, 30);
   const orangeWind = windCauses(60, 80);
-  const red = { ...rainCauses(40, 60, 80), ...windCauses(80, 100) };
-  if (Object.keys(red).length || (Object.keys(orangeRain).length && Object.keys(orangeWind).length)) {
-    return { tone: "red", causes: yellow };
+  const redRain = rainCauses(40, 60, 80);
+  const red = { ...redRain, ...windCauses(80, 100) };
+  const combinedRed = Object.keys(orangeRain).length && Object.keys(orangeWind).length;
+  const rainTone = Object.keys(redRain).length || combinedRed ? "red"
+    : Object.keys(orangeRain).length || (stormRainOverlap && Object.keys(yellowRain).length) ? "orange"
+    : Object.keys(yellowRain).length || stormRainWindOverlap ? "yellow" : "";
+  if (Object.keys(red).length || combinedRed) {
+    return { tone: "red", causes: yellow, rainTone };
   }
   const orange = { ...(stormRainOverlap && yellowRain), ...orangeRain, ...orangeWind };
-  if (Object.keys(orange).length) return { tone: "orange", causes: yellow };
-  return { tone: Object.keys(yellow).length ? "yellow" : "", causes: yellow };
+  if (Object.keys(orange).length) {
+    return { tone: "orange", causes: yellow, rainTone };
+  }
+  return { tone: Object.keys(yellow).length ? "yellow" : "", causes: yellow, rainTone };
 }
 
 function forecastSlotAlertTone(sources = [], initialTone = "", detailed = false) {
   const ranks = { "": 0, yellow: 1, orange: 2, red: 3 };
-  const result = { tone: initialTone, causes: initialTone ? { rain: 0 } : {} };
+  const result = { tone: initialTone, causes: initialTone ? { rain: 0 } : {}, rainTone: initialTone };
   for (const source of Array.isArray(sources) ? sources : [sources]) {
-    const { tone, causes } = forecastSourceAlertTone(source);
+    const { tone, causes, rainTone } = forecastSourceAlertTone(source);
     if (ranks[tone] > ranks[result.tone]) result.tone = tone;
+    if (ranks[rainTone] > ranks[result.rainTone]) result.rainTone = rainTone;
     for (const [metric, value] of Object.entries(causes)) {
       result.causes[metric] = Math.max(result.causes[metric] ?? 0, value);
     }

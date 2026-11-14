@@ -18,7 +18,7 @@ if (statePath && (entry.siteId !== profile.id || entry.latitude !== profile.lati
   throw new Error('Les données ne correspondent pas au lieu initial.');
 }
 const changelog = await readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
-const version = [...changelog.matchAll(/— v(\d+\.\d{3}) —/g)].at(-1)?.[1];
+const version = [...changelog.matchAll(/— v(\d+\.\d+) —/g)].at(-1)?.[1];
 if (!version) throw new Error('Version absente du journal.');
 const escape = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const pageTitle = profile.name;
@@ -34,7 +34,7 @@ await mkdir(target, { recursive: true });
 await cp(path.join(root, 'public'), target, { recursive: true });
 for (const file of ['index.html', 'service-worker.js']) {
   const content = (await readFile(path.join(target, file), 'utf8'))
-    .replaceAll('__RELEASE__', version).replaceAll('__ASSET_VERSION__', version.replaceAll('.', ''))
+    .replaceAll('__RELEASE__', version).replaceAll('__ASSET_VERSION__', version)
     .replaceAll('__CONNECT_SOURCES__', () => escape(connectSources))
     .replaceAll('__SITE_TITLE__', () => escape(pageTitle)).replaceAll('__SITE_HEADING__', () => heading).replaceAll('__SITE_LOCATION__', () => location);
   await writeFile(path.join(target, file), content);

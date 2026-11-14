@@ -144,6 +144,7 @@ function sourceUpdatesMarkup(updates, timezone, now) {
 export function weatherPictogram(sample, iconMarkup) {
   const storm = sample.stormSignal === true;
   const phase = sample.phase || precipitationPhase(sample);
+  const trace = phase === 'rain' && sample.rainTrace;
   const snow = ['snow', 'mixed', 'snow-unknown'].includes(phase), freezing = phase === 'freezing';
   const phaseLabel = phase === 'mixed' ? 'Pluie et neige sur ce créneau ; simultanéité non précisée'
     : phase === 'snow-unknown' ? 'Neige ; quantité de pluie inconnue' : snow ? 'Neige' : freezing ? 'Pluie verglaçante' : '';
@@ -152,7 +153,7 @@ export function weatherPictogram(sample, iconMarkup) {
   const rainLevel = !snow || phase === 'mixed' ? Math.max(0, Math.min(5, sample.rainLevel ??
     (valid(liquid) && liquid >= .01 ? liquid < 3 ? 1 : liquid < 8 ? 2 : liquid < 15 ? 3 : liquid < 30 ? 4 : 5 : 0))) : 0;
   const image = valid(cloudCover) ? iconMarkup({ ...sample, cloudCover: snow || freezing ? Math.max(35, cloudCover) : cloudCover,
-    ...(snow || freezing || phase === 'unknown' ? { rain: 0, rainLevel: 0 } : { rainLevel }) }) : '<span class="day-icon-missing">—</span>';
+    ...(snow || freezing || phase === 'unknown' || trace ? { rain: 0, rainLevel: 0 } : { rainLevel }) }) : '<span class="day-icon-missing">—</span>';
   const snowLevel = [1, 2, 3].includes(sample.snowLevel) ? sample.snowLevel
     : sample.snowfall >= 1 ? 3 : sample.snowfall >= .2 ? 2 : 1;
   // Each component of mixed precipitation keeps its own quantity and scale.
@@ -160,7 +161,9 @@ export function weatherPictogram(sample, iconMarkup) {
   const mixedLayer = phase === 'mixed' ? mixedPrecipitationMarkup(rainLevel, snowLevel) : '';
   const phaseImage = snow || freezing ? `<span class="day-phase-icon" role="img" aria-label="${phaseLabel}">${freezing ? '' : image}${mixedLayer || `<img class="day-snow-layer" src="pictogrammes/${freezing ? 'pluie-verglacante' : 'calque-neige-' + snowLevel}.svg" alt="" loading="lazy" decoding="async">`}</span>` : image;
   const lightning = storm ? '<img class="day-weather-storm" src="pictogrammes/calque-orage.svg" alt="" loading="lazy" decoding="async">' : '';
-  return `<span class="weather-icon" data-precipitation-phase="${escape(phase || 'unknown')}" data-rain-level="${['rain', 'mixed'].includes(phase) ? rainLevel : 0}" data-snow-level="${snow ? snowLevel : 0}"${sample.phaseDescription ? ` title="${escape(sample.phaseDescription)}"` : ''}${storm ? ' role="img" aria-label="Orage possible"' : ''}>${phaseImage}${lightning}</span>`;
+  const traceLayer = trace ? '<img class="day-rain-trace-layer" src="pictogrammes/calque-traces-pluie.svg" alt="Traces de pluie prévues">' : '';
+  const description = trace ? 'Traces de pluie prévues' : sample.phaseDescription;
+  return `<span class="weather-icon" data-precipitation-phase="${escape(phase || 'unknown')}" data-rain-level="${!trace && ['rain', 'mixed'].includes(phase) ? rainLevel : 0}" data-snow-level="${snow ? snowLevel : 0}"${description ? ` title="${escape(description)}"` : ''}${storm ? ' role="img" aria-label="Orage possible"' : ''}>${phaseImage}${traceLayer}${lightning}</span>`;
 }
 
 export function mixedPrecipitationMarkup(rainLevel, snowLevel) {
@@ -734,11 +737,13 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
   let previousRainLabel = null;
   const dailySnowPlateaus = [];
   const precipitationBars = compactRain ? rainGroups.map(precipitation24h) : [];
-  const scales = compactRain ? precipitation24hScales(precipitationBars) : null;
+  const isTrace = ({ group, rain }) => group.phase === 'rain' && rain > 0 && rain < .1 - 1e-9;
+  const scales = compactRain ? precipitation24hScales(precipitationBars.filter(bar => !isTrace(bar))) : null;
   const gradient = 'day-rain-intensity-' + day.date;
   const rain = layer('rain', rainGroups.map((group, index) => {
     const precipitation = precipitationBars[index];
-    if (precipitation ? !rainVisible(precipitation.rain) && !precipitation.snow : !rainVisible(group.rain)) return '';
+    const traceOnly = precipitation && isTrace(precipitation);
+    if (!traceOnly && (precipitation ? !rainVisible(precipitation.rain) && !precipitation.snow : !rainVisible(group.rain))) return '';
     const hours = (group.end - group.start) / HOUR, rate = group.rain / hours;
     // Quantified rain grows linearly above the minimum reserved for traces.
     const proportionalHeight = rate / rainScale * 67;
@@ -751,7 +756,7 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
       const kind = group.phase === 'freezing' ? 'Pluie verglaçante' : precipitation.equivalent ? 'Précip. (équiv. eau)' : 'Pluie';
       detail = [
         format.format(group.start) + ' – ' + format.format(group.end),
-        rainVisible(precipitation.rain) && (trace ? kind + ' : gouttes'
+        (traceOnly || rainVisible(precipitation.rain)) && (traceOnly || trace ? kind + ' : gouttes'
           : kind + ' : ' + rainDetailNumber(precipitation.rain) + ' mm · ' + rainDetailNumber(precipitation.rainRate) + ' mm/h'),
         precipitation.snow > 0 && 'Neige estimée : ' + snowLabel(precipitation.snow) + ' · ' + rainDetailNumber(precipitation.snowRate) + ' cm/h'
       ].filter(Boolean).join('\n');
@@ -776,6 +781,15 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
     }
     const pointMarkup = (phaseClass, rainBar, snowBar, label) =>
       `<g class="chart-point${phaseClass}"${group.edge ? ' data-adjacent-day="true"' : ''} data-rain-source="${escape(group.source)}" data-rain-amount="${group.rain}" data-rain-rate="${rate}" data-rain-hours="${hours}" tabindex="${state.opacities.rain ? 0 : -1}" data-tooltip="${escape(detail)}" aria-label="${escape(detail)}">${rainBar}${snowBar}${group.edge ? '' : label}</g>`;
+    if (traceOnly) {
+      const spacing = Math.min(5, (right - left) / 3);
+      const dot = Math.min(1.5, spacing / 3);
+      const dots = [-1, 0, 1].map(offset => {
+        const x = center + offset * spacing;
+        return `M${x - dot},${height - 4} a${dot},${dot} 0 1 0 ${2 * dot},0 a${dot},${dot} 0 1 0 ${-2 * dot},0 Z`;
+      }).join(' ');
+      return pointMarkup(' day-rain-trace-point', `<rect x="${left}" y="${height - 12}" width="${right - left}" height="12" fill="transparent"/><path d="${dots}" fill="#648fab"/>`, '', '');
+    }
     if (precipitation) {
       const { rain: amount, rainRate, snowRate } = precipitation;
       const rainHeight = rainVisible(amount) ? trace ? minimumRainBarHeight
@@ -847,7 +861,12 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
   }).join('')) : '';
   const pictogramPrecipitation = (start, end) => {
     const intervals = dailyRainBars(day, start, end);
-    return { ...precipitationSummary(intervals), rainLevel: rainPictogramLevelForIntervals(intervals) };
+    const summary = precipitationSummary(intervals);
+    const rainLevel = rainPictogramLevelForIntervals(intervals);
+    if (!compactRain || summary.phase !== 'rain') return { ...summary, rainLevel };
+    const overlapping = precipitationBars.filter(({ group }) => group.start < end && group.end > start);
+    const hasRainBar = overlapping.some(item => !isTrace(item) && rainVisible(item.rain));
+    return { ...summary, rainLevel: hasRainBar ? rainLevel : 0, rainTrace: !hasRainBar && overlapping.some(isTrace) };
   };
   // Hours and pictograms share a fixed column, as on the site timeline.
   // Moving or hiding the temperature curve does not move or hide this header.

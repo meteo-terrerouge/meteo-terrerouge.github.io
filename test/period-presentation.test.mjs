@@ -185,10 +185,113 @@ test('la vignette distingue une accalmie autour de midi des épisodes avant et a
   assert.match(html, /data-pictograms="3"/);
   const conditions = html.split('class="condition"').slice(1);
   assert.match(conditions[0], /Avant 9 h[\s\S]*calque-pluie-3\.svg[\s\S]*calque-orage\.svg/);
-  assert.match(conditions[1], /En journée[\s\S]*temps sec/);
+  assert.match(conditions[1], /9 h – 16 h[\s\S]*temps sec/);
   assert.doesNotMatch(conditions[1], /calque-(pluie|orage)/);
   assert.match(conditions[2], /Dès 16 h[\s\S]*calque-pluie-3\.svg[\s\S]*class="rain-amount">20,8<\/span>/);
   assert.doesNotMatch(render(true), /data-pictograms="3"/);
+});
+
+test('les vignettes et la frise distinguent le sec, les traces et la pluie chiffrée', () => {
+  for (const date of ['2026-11-16', '2026-11-23', '2026-11-26']) {
+    const midnight = Date.parse(date + 'T00:00:00+01:00');
+    const amounts = [0, .007, .1];
+    for (const amount of amounts) {
+      const hours = alertHours(24).map((hour, index) => {
+        const rain = index > 0 && index <= 10 ? amount : 0;
+        return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain };
+      });
+      const input = { dashboard: { arome: { hours } }, week: {}, now: midnight - HOUR, timezone: 'Europe/Paris' };
+      const day = dailyRowsTools.buildDailyRows(input).find(day => day.date === date);
+      const card = compactCard(day, input);
+      const chart = dailyRowsTools.dailyChartMarkup(day, { ...input, compactRain: true, width: 1800 });
+      assert.equal(card.includes('calque-traces-pluie.svg'), amount === .007);
+      assert.equal(card.includes('class="rain-amount">gouttes</span>'), amount === .007);
+      assert.equal(card.includes('class="dry-slash"'), amount === 0);
+      assert.equal(card.includes('Reste de la journée'), amount > 0);
+      if (amount) assert.match(card, /Reste de la journée[\s\S]*?temps sec/);
+      assert.equal(chart.includes('day-rain-trace-point'), amount === .007);
+      assert.equal(chart.includes('calque-traces-pluie.svg'), amount === .007);
+      assert.equal(chart.includes('class="day-combined-rain"'), amount === .1);
+      if (amount === .007) {
+        assert.doesNotMatch(card, /0,07|class="rain-unit"/);
+        assert.doesNotMatch(chart, /data-rain-level="[1-5]"/);
+      }
+    }
+  }
+});
+
+test('une accalmie de dimanche reste visible hors de midi', () => {
+  const midnight = Date.parse('2026-11-15T00:00:00+01:00');
+  const hours = alertHours(24).map((hour, index) => {
+    const rain = index > 14 && index <= 19 ? 0 : .3;
+    return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain };
+  });
+  const input = { dashboard: { arome: { hours } }, week: {}, now: midnight - HOUR, timezone: 'Europe/Paris' };
+  const day = dailyRowsTools.buildDailyRows(input).find(day => day.date === '2026-11-15');
+  const html = compactCard(day, input);
+  assert.match(html, /data-pictograms="3"/);
+  assert.match(html, /14 h – 19 h[\s\S]*?temps sec[\s\S]*?Dès 19 h/);
+});
+
+test('la vignette affiche le ciel de jour avant 13 h et sépare les premières gouttes du renforcement', () => {
+  const date = '2026-11-14';
+  const midnight = Date.parse(date + 'T00:00:00+01:00');
+  const hours = alertHours(24).map((hour, index) => {
+    const rain = index <= 13 ? 0 : index <= 16 ? .05 : index <= 20 ? 3.5 : 0;
+    return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain,
+      stormSignal: index >= 17 && index <= 20 };
+  });
+  const input = { dashboard: { arome: { hours } }, week: {}, now: midnight + 13 * HOUR, timezone: 'Europe/Paris',
+    sunTimesForDate: () => ({ sunrise: new Date(midnight + 8 * HOUR), sunset: new Date(midnight + 17 * HOUR) }) };
+  const [day] = dailyRowsTools.buildDailyRows(input);
+  const conditions = compactCard(day, input).split('class="condition"').slice(1);
+  assert.equal(conditions.length, 3);
+  assert.match(conditions[0], /Avant 13 h[\s\S]*?cloud-day-/);
+  assert.match(conditions[1], /13 h – 16 h[\s\S]*?calque-pluie-1\.svg/);
+  assert.doesNotMatch(conditions[1], /calque-orage/);
+  assert.match(conditions[2], /Dès 16 h[\s\S]*?calque-orage\.svg/);
+});
+
+test('avant 4 h le ciel est nocturne, de 4 à 13 h et après 13 h il est diurne', () => {
+  const midnight = Date.parse('2026-11-15T00:00:00+01:00');
+  const hours = alertHours(24).map((hour, index) => {
+    const rain = index <= 4 ? .015 : index <= 13 ? 0 : .02;
+    return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain, stormSignal: index < 4 };
+  });
+  const input = { dashboard: { arome: { hours } }, week: {}, now: midnight, timezone: 'Europe/Paris',
+    sunTimesForDate: () => ({ sunrise: new Date(midnight + 8 * HOUR), sunset: new Date(midnight + 17 * HOUR) }) };
+  const [day] = dailyRowsTools.buildDailyRows(input);
+  const conditions = compactCard(day, input).split('class="condition"').slice(1);
+  assert.equal(conditions.length, 3);
+  assert.match(conditions[0], /class="period">Nuit[\s\S]*?cloud-night-/);
+  assert.match(conditions[1], /4 h – 13 h[\s\S]*?cloud-day-/);
+  assert.match(conditions[2], /Dès 13 h[\s\S]*?cloud-day-/);
+});
+
+test('les horaires deviennent des moments de la journée à longue échéance, et une courte pluie avant 1 h ne coupe pas la journée', () => {
+  const date = '2026-11-29';
+  const midnight = Date.parse(date + 'T00:00:00+01:00');
+  const render = (lead, rainUntil) => {
+    const hours = alertHours(24).map((hour, index) => {
+      const rain = index > 0 && index <= rainUntil ? .2 : 0;
+      return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain };
+    });
+    const input = { dashboard: { openMeteo: { hours } }, week: {}, now: midnight - lead * 24 * HOUR, timezone: 'Europe/Paris',
+      sunTimesForDate: () => ({ sunrise: new Date(midnight + 8 * HOUR), sunset: new Date(midnight + 17 * HOUR) }) };
+    const day = dailyRowsTools.buildDailyRows(input).find(day => day.date === date);
+    return compactCard(day, input);
+  };
+  assert.match(render(1, 7), /class="period">Nuit</);
+  assert.match(render(1, 19), /Avant 19 h/);
+  for (const lead of [2, 15]) {
+    const html = render(lead, 19);
+    assert.doesNotMatch(html, /Avant 19 h|Reste de la journée/);
+    assert.match(html, /class="period">Soir</);
+  }
+  const brief = render(1, 1);
+  assert.match(brief, /data-pictograms="1"/);
+  assert.doesNotMatch(brief, /class="period"|calque-pluie-/);
+  assert.match(brief, /class="rain-amount">0,2</);
 });
 
 test('le cumul quotidien de neige fraîche apparaît en cm à côté de la pluie liquide', () => {
@@ -242,8 +345,45 @@ test('les vignettes mettent en évidence chaque mesure dès le jaune', () => {
     if (metrics.includes('rain-amount')) {
       assert.match(html, /class="rain-reading"[^>]*><span class="rain-amount alert-value">/);
     }
-    if (rain > 0) assert.doesNotMatch(html, /class="rain-drop"/);
+    if (rain > 0) assert.doesNotMatch(html, /class="dry-slash"/);
     else assert.match(html, /class="rain-drop"[\s\S]*?class="dry-slash"/);
+  }
+});
+
+test('le pictogramme ARPEGE distingue les traces du cumul de plusieurs créneaux', () => {
+  const midnight = Date.parse('2026-11-16T00:00:00+01:00');
+  for (const [amount, trace] of [[.12, true], [.31, false]]) {
+    const hours = Array.from({ length: 8 }, (_, index) => {
+      const start = midnight + index * 3 * HOUR;
+      const end = start + 3 * HOUR;
+      const rain = index >= 4 ? amount : 0;
+      return { time: new Date(end).toISOString(), rainIntervalStart: new Date(start).toISOString(),
+        rainIntervalEnd: new Date(end).toISOString(), rain, liquidRain: rain, snowfall: 0,
+        temperature: 7, cloudCover: 100, weatherCode: rain ? 61 : 3 };
+    });
+    const input = { dashboard: {}, week: { hours }, now: midnight - 24 * HOUR, timezone: 'Europe/Paris' };
+    const [day] = dailyRowsTools.buildDailyRows(input);
+    const html = compactCard(day, input);
+    assert.equal(html.includes('calque-traces-pluie.svg'), trace);
+    assert.equal(html.includes('calque-pluie-1.svg'), !trace);
+    assert.ok(html.includes(`class="rain-amount">${trace ? '0,48' : '1,24'}</span>`));
+  }
+});
+
+test('le cumul quotidien affiche gouttes à 0,1 mm inclus', () => {
+  const midnight = Date.parse('2026-11-14T00:00:00+01:00');
+  for (const [total, expected] of [[.1, 'gouttes'], [.102, '&gt; 0,1'], [.11, '0,11']]) {
+    const hours = alertHours(24).map((hour, index) => {
+      const rain = index === 12 ? total : 0;
+      return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain };
+    });
+    const input = { dashboard: { arome: { hours } }, week: {}, now: midnight, timezone: 'Europe/Paris' };
+    const [day] = dailyRowsTools.buildDailyRows(input);
+    const html = compactCard(day, input);
+    assert.ok(html.includes(`class="rain-amount">${expected}</span>`));
+    assert.match(html, /<svg class="rain-drop"/);
+    assert.doesNotMatch(html, /class="dry-slash"/);
+    assert.equal(html.includes('class="rain-unit">mm'), total > .1);
   }
 });
 
@@ -258,6 +398,27 @@ test('les vignettes ajoutent le vent moyen aux rafales à partir de 20 km/h', ()
     assert.match(html, /Rafales jusqu’à 53 km\/h/);
     assert.equal(html.includes('Vent moyen jusqu’à 20 km/h'), windSpeed === 20);
     assert.equal(html.includes('class="wind-divider"'), windSpeed === 20);
+  }
+});
+
+test('un dépassement sur trois heures ajoute un repère à côté du cumul quotidien sans le mettre en évidence', () => {
+  const midnight = Date.parse('2026-11-14T00:00:00+01:00');
+  const amounts = [6.05, 4.17, .88, .18, 2.27, 1.56];
+  for (const storm of [false, true]) {
+    const hours = alertHours(24).map((hour, index) => {
+      const rain = amounts[index - 19] ?? 0;
+      return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain,
+        stormSignal: storm && index === 18 };
+    });
+    const input = { dashboard: { arome: { hours } }, week: {}, now: midnight + 15 * HOUR, timezone: 'Europe/Paris' };
+    const [day] = dailyRowsTools.buildDailyRows(input);
+    const html = compactCard(day, input);
+    assert.match(html, new RegExp(`data-alert="${storm ? 'orange' : 'yellow'}"`));
+    assert.match(html, /class="rain-amount">15,11<\/span>/);
+    assert.doesNotMatch(html, /class="rain-amount alert-value"/);
+    assert.match(html, new RegExp(`class="card-rain-alert" data-level="${storm ? 'orange' : 'yellow'}"`));
+    assert.equal((html.match(/<svg class="card-rain-alert-mark"/g) ?? []).length, storm ? 3 : 2);
+    assert.doesNotMatch(html, /mm\/3h/);
   }
 });
 

@@ -20,7 +20,11 @@ test('la base se construit seule avec ses ressources locales, sans données ni m
   runInNewContext(await readFile(path.join(root, 'dist/runtime-config.js'), 'utf8'), context);
   const config = context.window.METEO_RUNTIME_CONFIG;
   const journal = await readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
-  assert.equal(config.releaseNumber, [...journal.matchAll(/— v(\d+\.\d{3}) —/g)].at(-1)[1]);
+  assert.equal(config.releaseNumber, [...journal.matchAll(/— v(\d+\.\d+) —/g)].at(-1)[1]);
+  const headerMeta = html.match(/<div class="header-meta">[\s\S]*?<\/header>/)[0];
+  assert.doesNotMatch(headerMeta, /News|About/);
+  assert.ok(headerMeta.includes('<span class="app-version">v' + config.releaseNumber + '</span>'));
+  assert.doesNotMatch(headerMeta, /<a\b|<button\b|\b(?:href|tabindex)=/);
   assert.equal(config.dataMode, 'static');
   assert.equal(config.apiBase, './');
   for (const feature of ['nowcasting', 'radar', 'pam', 'lightning', 'temperatureNormals']) {

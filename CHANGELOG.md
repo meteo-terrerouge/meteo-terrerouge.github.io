@@ -127,3 +127,21 @@
 13/11/2026 23:40 — v0.085 — La frise 24 h reprend le bandeau et les marges de la frise 3 h, avec un graphique sans cadre intérieur.
 
 13/11/2026 23:43 — v0.086 — La colonne des commandes de la frise 24 h commence sous la légende, à la hauteur du graphique.
+
+13/11/2026 23:56 — v1.0 — L’en-tête reprend « News », « About » et le numéro de version des Tatins, sous forme de libellés non cliquables.
+
+14/11/2026 09:40 — v1.1 — Terre Rouge : trois points distinguent les traces de pluie du temps sec sur les vignettes et la frise 24 h, les cumuls positifs sous 0,1 mm s’affichent « gouttes » et les accalmies durables ont leur pictogramme dans la vignette.
+
+14/11/2026 10:03 — v1.2 — Terre Rouge : le libellé « gouttes » est plus petit et cinq points fins signalent les traces sous le nuage.
+
+14/11/2026 10:13 — v1.3 — Terre Rouge : les traces de pluie sont représentées par deux rangées de points fins en quinconce sous le nuage.
+
+14/11/2026 13:20 — v1.4 — Terre Rouge : trois traits fins en quinconce remplacent les points sous le nuage pour les traces de pluie.
+
+14/11/2026 13:24 — v1.5 — Terre Rouge : les vignettes distinguent un début faiblement pluvieux d’un renforcement durable et choisissent le ciel de jour selon la durée de clarté à l’intérieur du créneau.
+
+14/11/2026 15:27 — v1.6 — Terre Rouge : les vignettes précisent la mesure de pluie qui déclenche l’alerte sur un créneau. Le cumul journalier est mis en évidence quand il franchit son propre seuil.
+
+14/11/2026 15:31 — v1.7 — Terre Rouge : la mesure d’alerte s’affiche au format compact à côté du cumul quotidien, avec un éclair quand l’orage contribue à l’alerte.
+
+14/11/2026 17:21 — v1.8 — Terre Rouge : deux ou trois petits disques bleus signalent l’alerte pluie. Les gouttes pleines et barrées ont la même taille et les cumuls jusqu’à 0,1 mm s’affichent « gouttes » dès qu’ils sont positifs. Les libellés s’adaptent à la source, à l’échéance et aux heures de jour. Les traces restent signalées par trois traits quand elles s’additionnent sur plusieurs créneaux d’un modèle à pas long. L’en-tête affiche uniquement le numéro de version.

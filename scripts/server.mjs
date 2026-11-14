@@ -114,7 +114,7 @@ async function main() {
   const siteDirectory = arg('site');
   if (siteDirectory && within(await realpath(siteDirectory), configPath)) throw new Error('La configuration privée doit rester hors du dossier public.');
   const changelog = await readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
-  const releaseNumber = [...changelog.matchAll(/— v(\d+\.\d{3}) —/g)].at(-1)?.[1] || '';
+  const releaseNumber = [...changelog.matchAll(/— v(\d+\.\d+) —/g)].at(-1)?.[1] || '';
   const { server, refresh } = await createWeatherServer({ config,
     stateFile: arg('state', '.cache/weather/server.json'), siteDirectory, releaseNumber,
     onErrors: errors => console.error(JSON.stringify(errors)) });

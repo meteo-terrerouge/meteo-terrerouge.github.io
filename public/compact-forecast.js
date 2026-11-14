@@ -2,6 +2,7 @@ const temperature = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
 const rainfall = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
 const roundedRainfall = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
 const HOUR = 3600000;
+const rainIsTrace = amount => amount > 0 && amount <= .1 + 1e-9;
 const notableMeanWind = 20;
 const skyLabels = ['Dégagé', 'Peu nuageux', 'Éclaircies', 'Nuageux', 'Très nuageux', 'Couvert'];
 const skyBand = cloud => [5, 25, 50, 75, 90, Infinity].findIndex(limit => cloud <= limit);
@@ -74,7 +75,9 @@ function weatherTrends(periods) {
 function liquidRainText(period) {
   if (!period.completeRain) return null;
   if (Number.isFinite(period.liquidRain)) {
-    return period.liquidRain > 0 && period.liquidRain < .01 ? '&lt; 0,01' : rainfall.format(period.liquidRain);
+    if (rainIsTrace(period.liquidRain)) return 'gouttes';
+    const value = rainfall.format(period.liquidRain);
+    return value === '0,1' ? '&gt; 0,1' : value;
   }
   let known = 0;
   let unclassified = 0;
@@ -82,21 +85,29 @@ function liquidRainText(period) {
     if (Number.isFinite(interval.liquidRain)) known += interval.liquidRain;
     else unclassified += interval.rain;
   }
+  const upper = known + unclassified;
+  if (rainIsTrace(known) && rainIsTrace(upper)) return 'gouttes';
   const lower = roundedRainfall.format(known);
   // Keep a value only when the unclassified amount cannot change the displayed precision.
-  return known >= .1 && lower === roundedRainfall.format(known + unclassified) ? lower : null;
+  if (known <= .1 + 1e-9 || lower !== roundedRainfall.format(upper)) return null;
+  return lower === '0,1' ? '&gt; 0,1' : lower;
 }
 
-function dailyRainMarkup(dayTotal, periods, highlighted) {
+function dailyRainMarkup(dayTotal, periods, highlighted, rainTone) {
   const value = liquidRainText(dayTotal);
   const available = value != null;
   const dry = dayTotal.completeRain && dayTotal.liquidRain === 0;
+  const trace = value === 'gouttes';
   const rain = comparableSeries(periods, precipitationSource, period => period.liquidRain);
-  const label = dry ? 'Pas de pluie de minuit à minuit' : available ? 'Cumul de pluie de minuit à minuit' : 'Cumul de pluie de minuit à minuit indisponible';
-  return `<span class="rain-total" title="${label}">
-    ${dry ? `<svg class="rain-drop" viewBox="0 0 24 24" role="img" aria-label="${label}"><path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/><path class="dry-slash" d="M5 5 19 19" fill="none" stroke="#fff" stroke-width="4"/><path d="M5 5 19 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
-      : `<span class="rain-reading" aria-label="${available ? label + ' ' + value + ' mm' : label}"><span class="rain-amount${available && highlighted ? ' alert-value' : ''}">${value ?? '—'}</span>${available ? '<span class="rain-unit">mm</span>' : ''}</span>`}
+  const label = dry ? 'Pas de pluie de minuit à minuit' : trace ? 'Traces de pluie prévues'
+    : available ? 'Cumul de pluie de minuit à minuit' : 'Cumul de pluie de minuit à minuit indisponible';
+  const slash = dry ? '<path class="dry-slash" d="M5 5 19 19" fill="none" stroke="#fff" stroke-width="4"/><path d="M5 5 19 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' : '';
+  const drop = available ? `<svg class="rain-drop" viewBox="0 0 24 24" ${dry ? `role="img" aria-label="${label}"` : 'aria-hidden="true"'}><path d="M12 2.8C9.5 6.4 6.8 9.7 6.8 13.2a5.2 5.2 0 0 0 10.4 0C17.2 9.7 14.5 6.4 12 2.8Z"/>${slash}</svg>` : '';
+  return `<span class="rain-total${trace ? ' rain-total-trace' : ''}" title="${label}">
+    ${drop}
+    ${dry ? '' : `<span class="rain-reading" aria-label="${available && !trace ? label + ' ' + value + ' mm' : label}"><span class="rain-amount${available && highlighted ? ' alert-value' : ''}">${value ?? '—'}</span>${available && !trace ? '<span class="rain-unit">mm</span>' : ''}</span>`}
     ${trend(rain, 2, 'rain', 'Tendance du cumul de pluie')}
+    ${rainAlertMarkup(rainTone)}
   </span>`;
 }
 
@@ -107,6 +118,14 @@ function dailySnowMarkup(day, total, dailyRainBars) {
   const label = 'Cumul de neige fraîche estimée de minuit à minuit' + (partial ? ' ; données partielles' : '');
   const value = temperature.format(amount) === '0' ? '&lt; 1' : temperature.format(amount);
   return `<span class="rain-reading snow-total" title="${label}" aria-label="${label} : ${value} cm"><span class="rain-amount">${value}</span><span class="rain-unit">cm${partial ? '*' : ''}</span></span>`;
+}
+
+function rainAlertMarkup(tone) {
+  if (!tone) return '';
+  const level = { yellow: 'jaune', orange: 'orange', red: 'rouge' }[tone];
+  const description = `Alerte pluie du bulletin · niveau ${level}`;
+  const mark = '<svg class="card-rain-alert-mark" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="currentColor"/><path d="M4.5 8h7M8 4.5v7" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  return `<span class="card-rain-alert" data-level="${tone}" role="img" aria-label="${description}" title="${description}">${mark.repeat(tone === 'yellow' ? 2 : 3)}</span>`;
 }
 
 function temperatureMean(period) {
@@ -126,7 +145,14 @@ function condition(period, { rainPictogramStep, mixedPrecipitationMarkup, notabl
   const cloud = period.cloudCover ?? (period.rain > 0 ? 100 : null);
   const liquid = period.liquidRain ?? period.intervals.reduce((sum, interval) =>
     sum + (interval.liquidRain ?? (interval.phase === 'rain' ? interval.rain : 0)), 0);
-  const rain = ['rain', 'mixed'].includes(period.phase) && liquid >= .01 ? rainPictogramStep(liquid) : 0;
+  const wetIntervals = period.intervals.filter(interval => interval.rain > 0);
+  // A long model step can add several hours of traces to the same pictogram.
+  const coarseTraces = wetIntervals.length > 0 && wetIntervals.every(interval => {
+    const hours = (interval.nativeEnd - interval.nativeStart) / HOUR;
+    return hours > 1 && rainIsTrace((interval.nativeLiquidRain ?? interval.nativeRain) / hours);
+  });
+  const trace = period.phase === 'rain' && (rainIsTrace(liquid) || coarseTraces);
+  const rain = !trace && ['rain', 'mixed'].includes(period.phase) && liquid >= .01 ? rainPictogramStep(liquid) : 0;
   const snow = snowPhases.includes(period.phase);
   const mixed = period.phase === 'mixed';
   const snowLevel = period.snowfall >= 1 ? 3 : period.snowfall >= .2 ? 2 : 1;
@@ -135,14 +161,14 @@ function condition(period, { rainPictogramStep, mixedPrecipitationMarkup, notabl
   const sky = cloud == null ? '' : image('vendor/weather-variants/cloud-' + (night ? 'night' : 'day') + '-' + band + '.svg');
   const layer = freezing ? 'pictogrammes/pluie-verglacante.svg'
     : snow ? 'pictogrammes/calque-neige-' + snowLevel + '.svg'
-    : rain ? 'pictogrammes/calque-pluie-' + rain + '.svg' : '';
+    : trace ? 'pictogrammes/calque-traces-pluie.svg' : rain ? 'pictogrammes/calque-pluie-' + rain + '.svg' : '';
   const weather = period.storm ? 'Orage possible' : freezing ? 'Pluie verglaçante'
-    : snow ? (mixed ? 'Pluie et neige' : 'Neige') : rain ? 'Pluie' : cloud == null ? 'Indisponible' : skyLabels[band];
+    : snow ? (mixed ? 'Pluie et neige' : 'Neige') : trace ? 'Traces de pluie prévues' : rain ? 'Pluie' : cloud == null ? 'Indisponible' : skyLabels[band];
   const wind = period.windGust >= notableGust ? image('pictogrammes/calque-vent.svg', 'wind-layer') : '';
   const dry = period.completeRain && period.phase === 'dry' && !period.storm;
-  const description = [weather, dry ? 'temps sec' : '', wind ? 'rafales' : ''].filter(Boolean).join(', ');
+  const description = [night ? 'Nuit' : '', weather, dry ? 'temps sec' : '', wind ? 'rafales' : ''].filter(Boolean).join(', ');
   const precipitation = mixed ? mixedPrecipitationMarkup(rain, snowLevel)
-    : layer ? image(layer, rain > 0 ? 'rain-layer' : '') : '';
+    : layer ? image(layer, rain > 0 || trace ? 'rain-layer' : '') : '';
   return `<div class="condition">${label ? `<span class="period">${label}</span>` : ''}
     <span class="weather-summary"><span class="pictogram" role="img" aria-label="${description}" title="${description}">${freezing ? '' : sky}${precipitation}${period.storm ? image('pictogrammes/calque-orage.svg') : ''}${wind}</span>${arrows ? `<span class="weather-trends">${arrows}</span>` : ''}</span></div>`;
 }
@@ -162,19 +188,37 @@ function changeScore(before, after) {
   return 0;
 }
 
-function middayLull(intervals, noon) {
-  let start, end;
+function dryWindows(intervals) {
+  const windows = [];
   for (const interval of intervals) {
-    const dry = interval.rain < .01 - 1e-9 && !(interval.snowfall > 0);
-    if (dry && interval.start === end) {
-      end = interval.end;
-      continue;
-    }
-    if (start < noon && noon < end && end - start >= 4 * HOUR) return [start, end];
-    start = dry ? interval.start : undefined;
-    end = dry ? interval.end : undefined;
+    if (interval.rain !== 0 || interval.snowfall > 0) continue;
+    const last = windows.at(-1);
+    if (last?.[1] === interval.start) last[1] = interval.end;
+    else windows.push([interval.start, interval.end]);
   }
-  return start < noon && noon < end && end - start >= 4 * HOUR ? [start, end] : null;
+  return windows.filter(([start, end]) => end - start >= 4 * HOUR)
+    .sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
+}
+
+function rainStrengtheningStart(period) {
+  if (!period?.completeRain || period.phase !== 'rain') return null;
+  // Keep a weak onset separate from at least an hour of stronger rain.
+  const liquidRate = interval => (interval.liquidRain ?? (interval.phase === 'rain' ? interval.rain : 0))
+    * HOUR / (interval.end - interval.start);
+  const stronger = period.intervals.findIndex(interval => liquidRate(interval) >= 2);
+  if (stronger <= 0) return null;
+  const start = period.intervals[stronger].start;
+  const onsetHours = (start - period.start) / HOUR;
+  const onsetRain = period.intervals.slice(0, stronger)
+    .reduce((total, interval) => total + liquidRate(interval) * (interval.end - interval.start) / HOUR, 0);
+  if (onsetHours < 1 || onsetRain / onsetHours >= .5) return null;
+  let end = start;
+  for (const interval of period.intervals.slice(stronger)) {
+    if (interval.start !== end || liquidRate(interval) < 2) break;
+    end = interval.end;
+    if (end - start >= HOUR) return start;
+  }
+  return null;
 }
 
 function card(day, options) {
@@ -182,6 +226,7 @@ function card(day, options) {
     dailyPeriodAlertSummaries, dailyPeriodSummary, dailyRainAlertTone, dailyRainBars } = options;
   const { weekday, day: number, month } = Object.fromEntries(dates.formatToParts(day.start).map(part => [part.type, part.value]));
   const dayLabel = day.date === today ? 'Aujourd’hui' : day.date === tomorrow ? 'Demain' : weekday;
+  const leadDays = (Date.parse(day.date) - Date.parse(today)) / (24 * HOUR);
   const chartTitle = `${weekday.charAt(0).toLocaleUpperCase('fr-FR')}${weekday.slice(1)} ${number} ${month}`;
   const localHours = new Map(day.samples.map(sample => [
     Number(localHour.formatToParts(sample.stamp).find(part => part.type === 'hour').value), sample.stamp,
@@ -202,37 +247,81 @@ function card(day, options) {
   const daytime = range(6, 18);
   const daySummary = { ...totals, cloudCover: daytime.cloudCover,
     storm: morning.storm || afternoon.storm || evening.storm };
-  const lull = middayLull(totals.intervals, at(12));
-  const lullPeriods = lull && lull[0] > day.start && lull[1] < day.end
-    ? [summarize(day, day.start, lull[0]), summarize(day, ...lull), summarize(day, lull[1], day.end)] : null;
-  const showLull = lullPeriods && !lullPeriods[1].storm
-    && [lullPeriods[0], lullPeriods[2]].every(period => period.rain >= .1 || period.storm);
+  const usesPiaf = day.chartRainIntervals?.some(interval => interval.source === 'PIAF'
+    && interval.start < day.end && interval.end > day.start);
+  const conditionsDay = usesPiaf ? { ...day, rainIntervals: day.chartRainIntervals } : day;
+  const conditionsTotal = conditionsDay === day ? totals : summarize(conditionsDay, day.start, day.end);
+  const wet = period => period.rain >= .1 || period.phase === 'rain' && period.rain > 0
+    || period.storm || snowPhases.includes(period.phase) || period.phase === 'freezing';
+  const lull = conditionsTotal.completeRain && dryWindows(conditionsTotal.intervals).map(([start, end]) => ({
+    before: start > day.start ? summarize(conditionsDay, day.start, start) : null,
+    dry: summarize(conditionsDay, start, end),
+    after: end < day.end ? summarize(conditionsDay, end, day.end) : null
+  })).find(({ before, dry, after }) =>
+    !dry.storm && !dry.snowfall && (before || after) && (!before || wet(before)) && (!after || wet(after)));
+  const briefNight = lull?.before && !lull.after && lull.before.end - day.start <= HOUR
+    && lull.before.phase === 'rain' && lull.before.rain < .5 && !lull.before.storm;
+  const broadPeriods = leadDays >= 4 || (lull
+    && [lull.dry.start, lull.dry.end].some(time => conditionsTotal.intervals.some(interval =>
+      (interval.start === time || interval.end === time)
+      && (interval.nativeEnd - interval.nativeStart > HOUR || (leadDays >= 2 && interval.interpolated)))));
   const atNoon = changeScore(morning, afternoon);
   const atEvening = changeScore(afternoon, evening);
   const split = Math.max(atNoon, atEvening) > 0;
   const wholeDaytime = morning.rain >= .1 && afternoon.rain >= .1 && morning.storm === afternoon.storm;
-  const renderCondition = (period, trends, label, night) => condition(period, options, trends, label, night);
-  const hourLabel = stamp => clock.format(stamp).replace(':00', ' h').replace(':', ' h ');
-  const conditions = showLull ? lullPeriods.map((period, index) => {
-    const midpoint = (period.start + period.end) / 2;
-    const night = midpoint < (day.sunrise ?? at(6)) || midpoint >= (day.sunset ?? at(18));
-    const label = [`Avant ${hourLabel(lull[0])}`, 'En journée', `Dès ${hourLabel(lull[1])}`][index];
-    return renderCondition(period, weatherTrends(periods(period.start, period.end)), label, night);
+  const isNightPeriod = ({ start, end }) => {
+    const daylight = Math.min(end, day.sunset ?? at(18)) - Math.max(start, day.sunrise ?? at(6));
+    return daylight < Math.min(HOUR, (end - start) / 2);
+  };
+  const renderCondition = (period, trends, label) =>
+    condition(period, options, trends, label, Boolean(label) && isNightPeriod(period));
+  const broadLabel = period => {
+    if (period.end <= at(6)) return 'Nuit';
+    if (period.end <= at(12)) return 'Matin';
+    if (period.start >= at(18)) return period.start >= at(21) ? 'Nuit' : 'Soir';
+    if (period.start >= at(12)) return 'Après-midi';
+    if (period.start >= at(6) || period.end >= at(18)) return 'En journée';
+    return 'Matin';
+  };
+  const hourLabel = stamp => {
+    const piaf = conditionsTotal.intervals.filter(interval => interval.source === 'PIAF');
+    const resolvedByPiaf = leadDays === 0 && piaf.some(interval => interval.nativeStart === stamp)
+      && piaf.some(interval => interval.nativeEnd === stamp);
+    const hour = clock.format(stamp);
+    if (hour.endsWith(':00') || resolvedByPiaf) return hour.replace(':00', ' h').replace(':', ' h ');
+    const localMinutes = Number(hour.slice(-2));
+    const rounded = stamp + (Math.round(localMinutes / 60) * 60 - localMinutes) * 60000;
+    return clock.format(rounded).replace(':00', ' h');
+  };
+  const strongerStart = lull && !lull.before && !broadPeriods ? rainStrengtheningStart(lull.after) : null;
+  const lullConditions = lull && !briefNight && [
+    lull.before && [lull.before, `Avant ${hourLabel(lull.dry.start)}`],
+    [lull.dry, !lull.after ? 'Reste de la journée' : !lull.before ? `Avant ${hourLabel(lull.dry.end)}`
+      : `${hourLabel(lull.dry.start)} – ${hourLabel(lull.dry.end)}`],
+    strongerStart && [summarize(conditionsDay, lull.after.start, strongerStart),
+      `${hourLabel(lull.after.start)} – ${hourLabel(strongerStart)}`],
+    lull.after && [strongerStart ? summarize(conditionsDay, strongerStart, lull.after.end) : lull.after,
+      `Dès ${hourLabel(strongerStart ?? lull.dry.end)}`],
+  ].filter(Boolean);
+  const conditions = lullConditions ? lullConditions.map(([period, label]) => {
+    const name = period.start === day.start && isNightPeriod(period) ? 'Nuit' : broadPeriods ? broadLabel(period) : label;
+    return renderCondition(period, weatherTrends(periods(period.start, period.end)), name);
   }).join('')
+    : briefNight ? renderCondition(lull.dry, weatherTrends(dailyHistory))
     : !split ? renderCondition(daySummary, weatherTrends(dailyHistory)) : atNoon >= atEvening
     ? renderCondition(morning, arrows(6, 12), 'Matin') + renderCondition(afternoon, arrows(12, 18), 'Après-midi')
-    : renderCondition(wholeDaytime ? daytime : afternoon, arrows(wholeDaytime ? 6 : 12, 18), wholeDaytime ? 'Avant 18 h' : 'Après-midi') + renderCondition(evening, arrows(18, 24), 'Soir', true);
+    : renderCondition(wholeDaytime ? daytime : afternoon, arrows(wholeDaytime ? 6 : 12, 18), wholeDaytime ? 'En journée' : 'Après-midi') + renderCondition(evening, arrows(18, 24), 'Soir');
   const alerts = [0, 6, 12, 18].filter(hour => at(hour + 6) > now)
     .flatMap(hour => dailyPeriodAlertSummaries(alertSources, day.date, at(hour), at(hour + 6), now));
   const dailyTone = dailyRainAlertTone(alertSources, day, now);
-  const { tone, causes } = forecastSlotAlertTone(alerts.map(item => ({ ...item, wind: item.windSpeed, gust: item.windGust })), dailyTone, true);
+  const { tone, causes, rainTone } = forecastSlotAlertTone(alerts.map(item => ({ ...item, wind: item.windSpeed, gust: item.windGust })), dailyTone, true);
   const meanWind = totals.windSpeed ?? causes.wind;
   const visibleMeanWind = meanWind >= notableMeanWind || causes.wind ? meanWind : null;
   const snow = dailySnowMarkup(day, totals, dailyRainBars);
-  const rain = snow && totals.completeRain && totals.liquidRain === 0 ? ''
-    : dailyRainMarkup(totals, dailyHistory, ['rain', 'rain3h', 'rainRate'].some(metric => metric in causes));
+  const rain = snow && totals.completeRain && totals.liquidRain === 0 && !rainTone ? ''
+    : dailyRainMarkup(totals, dailyHistory, Boolean(dailyTone), rainTone);
   const alert = tone ? ` data-alert="${tone}"${dailyTone ? ` data-daily-rain-alert="${dailyTone}"` : ''} aria-label="${dayLabel} ${number} ${month}. ${alertLabels[tone]}."` : '';
-  return `<li><article class="card${split || showLull ? ' card-transition' : ''}${day.trend ? ' card-outlook' : ''}" data-pictograms="${showLull ? 3 : split ? 2 : 1}"${alert}>
+  return `<li><article class="card${!briefNight && (split || lullConditions) ? ' card-transition' : ''}${day.trend ? ' card-outlook' : ''}" data-pictograms="${lullConditions?.length ?? (split && !briefNight ? 2 : 1)}"${alert}>
     <h2 class="card-heading">${day.trend ? '<span class="outlook-label"><span>Tendance</span></span>' : ''}<time datetime="${day.date}"><span>${dayLabel}</span><small>${number} ${month}</small></time></h2>
     <div class="conditions">${conditions}</div>
     <div class="card-metrics forecast-metrics">
