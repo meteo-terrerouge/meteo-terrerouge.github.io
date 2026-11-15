@@ -61,14 +61,16 @@ export function rainBarDropsMarkup(left, right, top, rate) {
   }).join('');
 }
 
-export function precipitation24hBarMarkup({ left, right, snowLeft, baseline, rainHeight, snowHeight, rainRate, trace, gradient, edge }) {
-  const rainRight = snowHeight > 0 ? snowLeft : right;
+export function precipitation24hBarMarkup({ left, right, baseline, rainHeight, snowHeight, rainRate, trace, gradient, edge }) {
+  const width = right - left;
   const rainTop = baseline - rainHeight;
-  const rainDrops = rainHeight > 0 && !trace && !edge ? rainBarDropsMarkup(left, rainRight, rainTop, rainRate) : '';
-  const rainBar = rainHeight > 0 ? `<rect x="${left}" y="${rainTop}" width="${rainRight - left}" height="${rainHeight}" class="day-combined-rain${trace ? ' day-combined-rain-trace' : ''}${edge ? ' day-adjacent-rain' : ''}" style="fill:url(#${gradient});opacity:1"/>${rainDrops}` : '';
+  const rainDrops = rainHeight > 0 && snowHeight === 0 && !trace && !edge ? rainBarDropsMarkup(left, right, rainTop, rainRate) : '';
+  const rainBar = rainHeight > 0 ? `<rect x="${left}" y="${rainTop}" width="${width}" height="${rainHeight}" class="day-combined-rain${trace ? ' day-combined-rain-trace' : ''}${edge ? ' day-adjacent-rain' : ''}" style="fill:url(#${gradient});opacity:1"/>` : '';
   const snowTop = baseline - snowHeight;
-  const snowBar = snowHeight > 0 ? `<rect class="piaf-snow-bar" x="${snowLeft}" y="${snowTop}" width="${right - snowLeft}" height="${snowHeight}"/><path class="piaf-snow-bar-edge" d="M${snowLeft},${snowTop - 7.1} V${baseline} H${right} V${snowTop - 7.1}" aria-hidden="true"/>` : '';
-  return { rainBar, snowBar };
+  const snowBar = snowHeight > 0 ? `<rect class="piaf-snow-bar" x="${left}" y="${snowTop}" width="${width}" height="${snowHeight}"/>` : '';
+  const snowEdge = snowHeight > 0 ? `<path class="piaf-snow-bar-edge" d="M${left},${snowTop - 7.1} V${baseline} H${right} V${snowTop - 7.1}" aria-hidden="true"/>` : '';
+  // Both measurements cover the same interval and use their own scale from the baseline.
+  return snowBar + rainBar + snowEdge + rainDrops;
 }
 
 export function precipitation24hLegend(scales, gradient) {

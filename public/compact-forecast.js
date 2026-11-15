@@ -160,7 +160,7 @@ function conditionPrecipitation(period, rainPictogramLevelForIntervals) {
   return { rain, trace, snow, mixed, freezing };
 }
 
-function condition(period, { rainPictogramLevelForIntervals, mixedPrecipitationMarkup, notableGust }, arrows, label, night) {
+function condition(period, { rainPictogramLevelForIntervals, mixedPrecipitationMarkup, notableGust }, arrows, label, night, tone) {
   const { rain, trace, snow, mixed, freezing } = conditionPrecipitation(period, rainPictogramLevelForIntervals);
   const cloud = period.cloudCover ?? (period.rain > 0 ? 100 : null);
   const snowLevel = period.snowfall > 15 + 1e-9 ? 3 : period.snowfall > 5 + 1e-9 ? 2 : 1;
@@ -176,12 +176,13 @@ function condition(period, { rainPictogramLevelForIntervals, mixedPrecipitationM
   const description = [night && label !== 'Nuit' ? 'Nuit' : '', weather, dry ? 'temps sec' : '', wind ? 'rafales' : ''].filter(Boolean).join(', ');
   const precipitation = mixed ? mixedPrecipitationMarkup(rain, snowLevel)
     : layer ? image(layer, rain > 0 || trace ? 'rain-layer' : '') : '';
-  return `<div class="condition">${label ? `<span class="period">${label}</span>` : ''}
+  const alert = tone ? ` data-period-alert="${tone}" role="group" aria-label="${label ? label + '. ' : ''}${alertLabels[tone]}"` : '';
+  return `<div class="condition"${alert}>${label ? `<span class="period">${label}</span>` : ''}
     <span class="weather-summary"><span class="pictogram" role="img" aria-label="${description}" title="${description}">${freezing ? '' : sky}${precipitation}${period.storm ? image('pictogrammes/calque-orage.svg') : ''}${wind}</span>${arrows ? `<span class="weather-trends">${arrows}</span>` : ''}</span></div>`;
 }
 
 function card(day, options) {
-  const { now, today, tomorrow, dates, shortDate, localHour, clock, alertSources, history, forecastSlotAlertTone,
+  const { now, today, tomorrow, dates, shortDate, localHour, clock, timezone, localDateKey, alertSources, history, forecastSlotAlertTone,
     dailyPeriodAlertSummaries, dailyPeriodSummary, dailyRainAlertTone, dailyRainBars } = options;
   const { weekday, day: number, month } = Object.fromEntries(dates.formatToParts(day.start).map(part => [part.type, part.value]));
   const dayLabel = day.date === today ? 'Aujourd’hui' : day.date === tomorrow ? 'Demain' : weekday;
@@ -207,15 +208,29 @@ function card(day, options) {
     total: conditionsTotal, daytime, at, leadDays, clock, notableGust: options.notableGust,
     summarize: (start, end) => summarize(conditionsDay, start, end),
   });
+  const alertWindows = [0, 6, 12, 18].map(hour => ({ start: at(hour), end: at(hour + 6), date: day.date }));
+  const alertsBetween = (windows, start, end) => windows.flatMap(window => {
+    const from = Math.max(start, window.start, now);
+    const to = Math.min(end, window.end);
+    return to > from ? dailyPeriodAlertSummaries(alertSources, window.date, from, to, now)
+      .map(item => ({ ...item, wind: item.windSpeed, gust: item.windGust })) : [];
+  });
+  const alerts = alertsBetween(alertWindows, day.start, day.end);
   const conditions = selectedConditions.map(({ period, label, night }) => {
     const trends = weatherTrends(periods(period.start, period.end));
-    const name = label === 'Nuit' && period.start >= day.end ? `Nuit (${shortDate.format(period.start)})` : label;
-    return condition(period, options, trends, name, night);
+    const nextNight = period.start >= day.end;
+    const name = nextNight ? `Nuit (${shortDate.format(period.start)})` : label;
+    const nextDate = nextNight ? localDateKey(day.end, timezone) : '';
+    const windows = nextNight ? [
+      { start: day.end, end: day.nextNightEnd, date: nextDate },
+      { start: day.nextNightEnd, end: period.end, date: nextDate },
+    ] : alertWindows;
+    const localAlerts = period.start === day.start && period.end === day.end ? alerts
+      : alertsBetween(windows, period.start, period.end);
+    return condition(period, options, trends, name, night, forecastSlotAlertTone(localAlerts));
   }).join('');
-  const alerts = [0, 6, 12, 18].filter(hour => at(hour + 6) > now)
-    .flatMap(hour => dailyPeriodAlertSummaries(alertSources, day.date, at(hour), at(hour + 6), now));
   const dailyTone = dailyRainAlertTone(alertSources, day, now);
-  const { tone, causes, rainTone } = forecastSlotAlertTone(alerts.map(item => ({ ...item, wind: item.windSpeed, gust: item.windGust })), dailyTone, true);
+  const { tone, causes, rainTone } = forecastSlotAlertTone(alerts, dailyTone, true);
   const meanWind = totals.windSpeed ?? causes.wind;
   const visibleMeanWind = meanWind >= notableMeanWind || causes.wind ? meanWind : null;
   const wind = options.windSummaryMarkup(visibleMeanWind, totals.windGust ?? causes.gust, causes);

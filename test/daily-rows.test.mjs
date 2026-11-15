@@ -30,7 +30,11 @@ test('la frise 3 h colore uniquement les créneaux concernés par un avertisseme
       const tone = { 12: 'yellow', 24: 'orange', 48: 'red' }[rainRate];
       return tone ? { tone, causes: { rainRate } } : {};
     } });
-  assert.deepEqual([...html.matchAll(/class="piaf-slot-alert piaf-slot-alert-([^"]+)"/g)].map(match => match[1]), ['yellow', 'orange', 'red']);
+  const plotHeight = html.match(/class="piaf-intensity-chart" viewBox="0 0 1200 (\d+)"/)[1];
+  const highlights = [...html.matchAll(/class="piaf-slot-alert piaf-slot-alert-([^"]+)"[^>]* y="0"[^>]* height="([^"]+)"/g)];
+  assert.deepEqual(highlights.map(([, tone, height]) => [tone, height]), [
+    ['yellow', plotHeight], ['orange', plotHeight], ['red', plotHeight],
+  ]);
   assert.match(html, /Avertissement du bulletin : rouge/);
   assert.match(html, /Pic de pluie<\/small><span class="rain-reading"><span class="rain-amount alert-value">48<\/span><span class="rain-unit">mm\/h/);
   assert.doesNotMatch(html, /three-hour-view-controls|day-chart-toggle/);
@@ -161,7 +165,7 @@ test('un seul diagramme pluie/neige : mm équivalent eau pour la hauteur, cm pou
   assert.deepEqual(details.map(([, ...amounts]) => amounts), [
     ['Pluie : 1 mm · 1 mm/h'],
     ['Neige estimée : 1 cm · 0,7 cm/h'],
-    ['Pluie : 0,5 mm · 0,5 mm/h', 'Neige estimée : &lt; 1 cm · 0,35 cm/h'],
+    ['Pluie et neige sur ce créneau', 'Pluie : 0,5 mm · 0,5 mm/h', 'Neige estimée : &lt; 1 cm · 0,35 cm/h'],
   ]);
   const summary = dailyRowsMarkup([day], { now });
   assert.ok(summary.includes('>1 cm (jusqu’à 12 h)</strong>'));

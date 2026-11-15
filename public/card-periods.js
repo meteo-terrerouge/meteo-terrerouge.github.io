@@ -35,10 +35,12 @@ function consecutive(spans, valueOf) {
 }
 
 export function cardPeriods(day, { total, daytime, summarize, at, leadDays, clock, notableGust }) {
-  const activityStart = at(outdoorStartHour);
-  const activityEnd = at(outdoorEndHour);
   const sunrise = day.sunrise ?? at(6);
   const sunset = day.sunset ?? at(18);
+  const earlyMorning = at(outdoorStartHour);
+  // A late sunrise keeps the preceding morning hours in the night summary.
+  const nightEnd = earlyMorning + Math.max(0, Math.round((sunrise - earlyMorning) / HOUR)) * HOUR;
+  const activityEnd = at(outdoorEndHour);
   const evening = at(18);
   const spans = weatherSpans(day, total);
   const dryRuns = consecutive(spans, span => span.phase === 'dry' && !span.storm).filter(run => run.value);
@@ -46,7 +48,6 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
   let start = day.start;
   // Ignore a dry start before people are likely to plan outdoor activities.
   // Very small nocturnal amounts can be skipped when the wet day starts later.
-  const nightEnd = Math.max(activityStart, sunrise);
   const morningStart = dryRuns.find(run => run.start <= day.start + HOUR && run.end <= nightEnd);
   if (morningStart && morningStart.end < day.end && spans.some(span => span.start >= morningStart.end && span.phase !== 'dry' && span.phase !== 'unknown')) {
     const prefix = summarize(day.start, morningStart.end);
@@ -64,7 +65,7 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
   // Reserve both sides of a usable dry window. Rank changes by how much they
   // affect the choice of when to go outside, then use at most two boundaries.
   const features = dryRuns.filter(run => {
-    const outdoorHours = Math.min(run.end, activityEnd) - Math.max(run.start, activityStart);
+    const outdoorHours = Math.min(run.end, activityEnd) - Math.max(run.start, nightEnd);
     const preceding = spans.find(span => span.end === run.start);
     const following = spans.find(span => span.start === run.end);
     const lateClearing = run.end === day.end && run.start > evening;
@@ -114,7 +115,7 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
   // Show a sustained change in outdoor comfort on a dry day, without
   // subdividing an already meaningful precipitation episode.
   if (total.completeRain && total.phase === 'dry' && total.storm === false) {
-    const morning = summarize(activityStart, at(12));
+    const morning = summarize(nightEnd, at(12));
     const afternoon = summarize(at(12), evening);
     const daylightGusts = (morning.windGust >= notableGust) !== (afternoon.windGust >= notableGust);
     const cloudChange = Number.isFinite(morning.cloudCover) && Number.isFinite(afternoon.cloudCover)
@@ -126,14 +127,14 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
     }
   }
 
-  const eligible = features.map(feature => ({ ...feature, times: feature.times.filter(time => time > start && time < day.end) }));
-  // Keep the last overnight boundary so changes within the night share one summary.
-  const lastNightCut = Math.max(start, ...eligible.flatMap(feature => feature.times).filter(time => time <= nightEnd));
+  // Round changes within the night to one boundary at the start of the day.
+  const eligible = features.map(feature => ({ ...feature, times: feature.times
+    .filter(time => time > start && time < day.end).map(time => Math.max(time, nightEnd)) }))
+    .filter(feature => feature.times.length);
   const cuts = new Set();
   for (const { times } of eligible.sort((a, b) => b.score - a.score || a.times[0] - b.times[0])) {
-    const retainedTimes = times.filter(time => time >= lastNightCut);
-    const candidate = new Set([...cuts, ...retainedTimes]);
-    if (candidate.size < maxPeriods) for (const time of retainedTimes) cuts.add(time);
+    const candidate = new Set([...cuts, ...times]);
+    if (candidate.size < maxPeriods) for (const time of times) cuts.add(time);
   }
   const boundaries = [start, ...[...cuts].sort((a, b) => a - b), day.end];
   const periods = boundaries.slice(0, -1).map((time, index) => summarize(time, boundaries[index + 1]));
@@ -144,7 +145,8 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
   // At short range, a new overnight episode can prompt people to prepare
   // before bedtime. The next civil date keeps its own totals and frise.
   if (leadDays <= 2 && !day.trend && day.nextNightEnd && periods.length < maxPeriods) {
-    const overnight = summarize(day.end, day.nextNightEnd);
+    const fullNight = summarize(day.end, day.nextNightEnd + (nightEnd - at(6)));
+    const overnight = fullNight.completeRain ? fullNight : summarize(day.end, day.nextNightEnd);
     const eveningWeather = summarize(evening, day.end);
     const newStorm = overnight.storm === true && eveningWeather.storm === false;
     const hazardousPhases = period => new Set(period.intervals.map(item => item.phase)
@@ -166,7 +168,7 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
   const afternoonPart = time => time < at(15) ? 'début' : time < at(17) ? 'milieu' : 'fin';
   return periods.map((period, index) => {
     const { start: from, end: to } = period;
-    const night = Math.min(to, sunset) - Math.max(from, sunrise) < Math.min(HOUR, (to - from) / 2);
+    const night = to <= nightEnd || Math.min(to, sunset) - Math.max(from, sunrise) < Math.min(HOUR, (to - from) / 2);
     let label = '';
     if (periods.length === 1) return { period, label, night: false };
     if (from >= day.end || to <= nightEnd) label = 'Nuit';

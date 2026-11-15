@@ -756,6 +756,7 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
       const kind = group.phase === 'freezing' ? 'Pluie verglaçante' : precipitation.equivalent ? 'Précip. (équiv. eau)' : 'Pluie';
       detail = [
         format.format(group.start) + ' – ' + format.format(group.end),
+        group.phase === 'mixed' && 'Pluie et neige sur ce créneau',
         (traceOnly || rainVisible(precipitation.rain)) && (traceOnly || trace ? kind + ' : gouttes'
           : kind + ' : ' + rainDetailNumber(precipitation.rain) + ' mm · ' + rainDetailNumber(precipitation.rainRate) + ' mm/h'),
         precipitation.snow > 0 && 'Neige estimée : ' + snowLabel(precipitation.snow) + ' · ' + rainDetailNumber(precipitation.snowRate) + ' cm/h'
@@ -779,8 +780,8 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
         + (group.snowfall > 0 && group.snowfallMethod === 'provider-estimate' ? '\nHauteur fraîche estimée fournie par Open-Meteo' : '')
         + (group.phase === 'mixed' ? '\nPluie et neige dans le même créneau source ; simultanéité non précisée' : '');
     }
-    const pointMarkup = (phaseClass, rainBar, snowBar, label) =>
-      `<g class="chart-point${phaseClass}"${group.edge ? ' data-adjacent-day="true"' : ''} data-rain-source="${escape(group.source)}" data-rain-amount="${group.rain}" data-rain-rate="${rate}" data-rain-hours="${hours}" tabindex="${state.opacities.rain ? 0 : -1}" data-tooltip="${escape(detail)}" aria-label="${escape(detail)}">${rainBar}${snowBar}${group.edge ? '' : label}</g>`;
+    const pointMarkup = (phaseClass, bars, label = '') =>
+      `<g class="chart-point${phaseClass}"${group.edge ? ' data-adjacent-day="true"' : ''} data-rain-source="${escape(group.source)}" data-rain-amount="${group.rain}" data-rain-rate="${rate}" data-rain-hours="${hours}" tabindex="${state.opacities.rain ? 0 : -1}" data-tooltip="${escape(detail)}" aria-label="${escape(detail)}">${bars}${group.edge ? '' : label}</g>`;
     if (traceOnly) {
       const spacing = Math.min(5, (right - left) / 3);
       const dot = Math.min(1.5, spacing / 3);
@@ -788,7 +789,7 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
         const x = center + offset * spacing;
         return `M${x - dot},${height - 4} a${dot},${dot} 0 1 0 ${2 * dot},0 a${dot},${dot} 0 1 0 ${-2 * dot},0 Z`;
       }).join(' ');
-      return pointMarkup(' day-rain-trace-point', `<rect x="${left}" y="${height - 12}" width="${right - left}" height="12" fill="transparent"/><path d="${dots}" fill="#648fab"/>`, '', '');
+      return pointMarkup(' day-rain-trace-point', `<rect x="${left}" y="${height - 12}" width="${right - left}" height="12" fill="transparent"/><path d="${dots}" fill="#648fab"/>`);
     }
     if (precipitation) {
       const { rain: amount, rainRate, snowRate } = precipitation;
@@ -797,23 +798,22 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
       const snowHeight = precipitation24hHeight(snowRate, scales.snow, height);
       const gap = group.edge ? 0 : Math.min(.8, (right - left) / 6);
       const barLeft = left + gap, barRight = Math.max(barLeft + .1, right - gap);
-      const snowLeft = rainHeight > 0 ? (barLeft + barRight) / 2 : barLeft;
       if (snowHeight > 0) {
         const previous = dailySnowPlateaus.at(-1);
-        if (previous?.end === group.start && Math.abs(previous.rate - snowRate) < 1e-9 && !previous.mixed && !rainHeight) {
+        if (previous?.end === group.start && Math.abs(previous.rate - snowRate) < 1e-9) {
           previous.right = barRight;
           previous.end = group.end;
-        } else dailySnowPlateaus.push({ left: snowLeft, right: barRight, level: height - snowHeight - 4.25,
-          stamp: group.start, end: group.end, rate: snowRate, mixed: rainHeight > 0 });
+        } else dailySnowPlateaus.push({ left: barLeft, right: barRight, level: height - snowHeight - 4.25,
+          stamp: group.start, end: group.end, rate: snowRate });
       }
       const labelX = Math.max(23, Math.min(width - 23, center));
       const showTrace = trace && !group.edge && (!previousRainLabel || labelX - 22 > previousRainLabel.right + 3);
       if (showTrace) previousRainLabel = { right: labelX + 22 };
       const label = showTrace ? `<text class="day-rain-label" x="${labelX}" y="${height - 11}" text-anchor="middle">gouttes</text>` : '';
       const phaseClass = snowHeight > 0 ? rainHeight > 0 ? ' day-combined-mixed' : ' day-combined-snow' : '';
-      const { rainBar, snowBar } = precipitation24hBarMarkup({ left: barLeft, right: barRight, snowLeft, baseline: height,
+      const bars = precipitation24hBarMarkup({ left: barLeft, right: barRight, baseline: height,
         rainHeight, snowHeight, rainRate, trace, gradient, edge: group.edge });
-      return pointMarkup(phaseClass, rainBar, snowBar, label);
+      return pointMarkup(phaseClass, bars, label);
     }
     const gap = group.edge ? 0 : Math.min(3, (right - left) * .1);
     const withUnit = !rainTrace(group.rain) && right - left - gap * 2 >= rainLabelWidth(group, true) + 6;
@@ -840,7 +840,7 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
     }
     const rainBar = !snow || group.liquidRain > 0 ? `<rect x="${barLeft}" y="${height - bar}" width="${barRight - barLeft}" height="${bar}" class="day-combined-rain${group.edge ? ' day-adjacent-rain' : ''}"/>` : '';
     const snowBar = snow ? `<rect class="piaf-snow-bar" x="${snowLeft}" y="${height - bar}" width="${barRight - snowLeft}" height="${bar}"/><path class="piaf-snow-bar-edge" d="M${snowLeft},${height - bar - 7.1} V${height} H${barRight} V${height - bar - 7.1}" aria-hidden="true"/>` : '';
-    return pointMarkup(phaseClass, rainBar, snowBar, label);
+    return pointMarkup(phaseClass, rainBar + snowBar, label);
   }).join(''));
   const snowCaps = layer('rain', snowCapMarkup(dailySnowPlateaus));
   const missingIntervals = [];
@@ -1441,7 +1441,7 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
       alertCauses[metric] = Math.max(alertCauses[metric] ?? 0, value);
     }
     const alertLabel = alertLabels[tone];
-    if (alertLabel) alertBackgrounds.push(`<rect class="piaf-slot-alert piaf-slot-alert-${tone}" x="${x(start)}" y="0" width="${x(stop) - x(start)}" height="${bottom}" aria-hidden="true"/>`);
+    if (alertLabel) alertBackgrounds.push(`<rect class="piaf-slot-alert piaf-slot-alert-${tone}" x="${x(start)}" y="0" width="${x(stop) - x(start)}" height="${height}" aria-hidden="true"/>`);
     return { start, stop, tone };
   });
   const boundaries = [...weather.map(sample => sample.stamp),

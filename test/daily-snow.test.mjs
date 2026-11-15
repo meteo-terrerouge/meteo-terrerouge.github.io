@@ -42,3 +42,28 @@ test('24 h : les congères s’arrêtent aux périodes sèches et les précipita
     }
   }
 });
+
+test('24 h compactes : la pluie et la neige couvrent le même créneau et les gouttes décorent la pluie seule', () => {
+  const now = Date.parse('2026-11-26T00:00:00+01:00');
+  const hours = [[.8, .56], [0, 0], [8, .14], [2, 0]].map(([liquidRain, snowfall], index) => ({
+    time: new Date(now + (index + 1) * 3600000).toISOString(),
+    rain: liquidRain + snowfall / .7, liquidRain, snowfall, weatherCode: snowfall ? 85 : 3,
+  }));
+  const [day] = buildDailyRows({ now, dashboard: { arome: { hours } } });
+  for (const width of [360, 1200]) {
+    const html = dailyChartMarkup(day, { now, width, compactRain: true });
+    const mixed = [...html.matchAll(/<g class="chart-point day-combined-mixed"[^>]*><rect class="piaf-snow-bar" x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"\/><rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)" class="day-combined-rain"/g)];
+    assert.equal(mixed.length, 2, 'le créneau sec reste vide');
+    const snowTaller = mixed.map(([, snowX, snowY, snowWidth, snowHeight, rainX, rainY, rainWidth, rainHeight]) => {
+      assert.equal(snowX, rainX);
+      assert.equal(snowWidth, rainWidth);
+      assert.ok(Math.abs(Number(snowY) + Number(snowHeight) - Number(rainY) - Number(rainHeight)) < 1e-9);
+      return Number(snowHeight) > Number(rainHeight);
+    });
+    assert.deepEqual(snowTaller, [true, false]);
+    const mixedBars = [...html.matchAll(/<g class="chart-point day-combined-mixed"[^>]*>[\s\S]*?<\/g>/g)];
+    for (const [bar] of mixedBars) assert.doesNotMatch(bar, /rain-bar-drop/);
+    assert.match(html, /class="rain-bar-drop"/, 'la pluie seule conserve les gouttes');
+    assert.match(html, /Pluie mm\/h[\s\S]*Neige cm\/h/);
+  }
+});
