@@ -127,10 +127,13 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
   }
 
   const eligible = features.map(feature => ({ ...feature, times: feature.times.filter(time => time > start && time < day.end) }));
+  // Keep the last overnight boundary so changes within the night share one summary.
+  const lastNightCut = Math.max(start, ...eligible.flatMap(feature => feature.times).filter(time => time <= nightEnd));
   const cuts = new Set();
   for (const { times } of eligible.sort((a, b) => b.score - a.score || a.times[0] - b.times[0])) {
-    const candidate = new Set([...cuts, ...times]);
-    if (candidate.size < maxPeriods) for (const time of times) cuts.add(time);
+    const retainedTimes = times.filter(time => time >= lastNightCut);
+    const candidate = new Set([...cuts, ...retainedTimes]);
+    if (candidate.size < maxPeriods) for (const time of retainedTimes) cuts.add(time);
   }
   const boundaries = [start, ...[...cuts].sort((a, b) => a - b), day.end];
   const periods = boundaries.slice(0, -1).map((time, index) => summarize(time, boundaries[index + 1]));
@@ -166,7 +169,7 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
     const night = Math.min(to, sunset) - Math.max(from, sunrise) < Math.min(HOUR, (to - from) / 2);
     let label = '';
     if (periods.length === 1) return { period, label, night: false };
-    if (from >= day.end || to <= activityStart) label = 'Nuit';
+    if (from >= day.end || to <= nightEnd) label = 'Nuit';
     else if (from >= evening && to === day.end && (!precise(from) || from === evening)) label = 'Soir';
     else if (to === at(12)) label = 'Matin';
     else if (from === at(12) && to === day.end) label = 'Reste de la journée';

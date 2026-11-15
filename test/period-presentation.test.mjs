@@ -355,6 +355,47 @@ test('avant 4 h le ciel est nocturne, de 4 à 13 h et après 13 h il est diurne'
   assert.match(conditions[2], /Dès 13 h[\s\S]*?cloud-day-/);
 });
 
+test('Demain : l’orage et la pluie avant l’aube sont résumés dans un seul créneau Nuit', () => {
+  const midnight = Date.parse('2026-11-16T00:00:00+01:00');
+  const hours = alertHours(24).map((hour, index) => {
+    const rain = index > 0 && index <= 6 ? (index <= 3 ? .05 : .44 / 3 - .05) : 0;
+    return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain,
+      stormSignal: index < 3 };
+  });
+  const input = { dashboard: { arome: { hours } }, now: midnight - HOUR, timezone: 'Europe/Paris',
+    sunTimesForDate: () => ({ sunrise: new Date(midnight + 8 * HOUR), sunset: new Date(midnight + 17 * HOUR) }) };
+  const day = dailyRowsTools.buildDailyRows(input).find(day => day.start === midnight);
+  const html = compactCard(day, input);
+  const conditions = html.split('class="condition"').slice(1);
+  assert.deepEqual(conditions.map(condition => condition.match(/class="period">([^<]+)/)?.[1]),
+    ['Nuit', 'Reste de la journée']);
+  assert.match(conditions[0], /cloud-night-[\s\S]*calque-pluie-[\s\S]*calque-orage/);
+  assert.match(conditions[1], /temps sec/);
+  assert.match(html, /class="rain-amount">0,44</);
+});
+
+test('Tendance : la pluie et la neige avant l’aube sont résumées dans un seul créneau Nuit', () => {
+  const midnight = Date.parse('2026-11-28T00:00:00+01:00');
+  const hours = alertHours(24).map((hour, index) => {
+    const liquidRain = index > 0 && index <= 6 ? (index <= 3 ? 2 : 3.8 / 3) : 0;
+    const snowfall = index > 3 && index <= 6 ? 1 / 3 : 0;
+    return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain: liquidRain + snowfall, liquidRain, snowfall,
+      weatherCode: snowfall ? 71 : liquidRain ? 61 : 2, cloudCover: index > 6 ? 30 : 100,
+      windGust: index <= 6 ? 63 : 20, stormSignal: false };
+  });
+  const input = { dashboard: { openMeteo: { hours } }, now: midnight - 13 * 24 * HOUR, timezone: 'Europe/Paris', notableGust: 55,
+    sunTimesForDate: () => ({ sunrise: new Date(midnight + 8 * HOUR), sunset: new Date(midnight + 17 * HOUR) }) };
+  const day = dailyRowsTools.buildDailyRows(input).find(day => day.start === midnight);
+  const html = compactCard(day, input);
+  const conditions = html.split('class="condition"').slice(1);
+  assert.match(html, /card-outlook/);
+  assert.deepEqual(conditions.map(condition => condition.match(/class="period">([^<]+)/)?.[1]),
+    ['Nuit', 'En journée']);
+  assert.match(conditions[0], /Pluie et neige, rafales[\s\S]*cloud-night-[\s\S]*calque-pluie[\s\S]*calque-neige/);
+  assert.match(conditions[1], /temps sec[\s\S]*cloud-day-/);
+  assert.match(html, /class="rain-amount">9,8<\/span><span class="rain-unit">mm/);
+});
+
 test('les horaires deviennent des moments de la journée à longue échéance, et une courte pluie avant 1 h ne coupe pas la journée', () => {
   const date = '2026-11-29';
   const midnight = Date.parse(date + 'T00:00:00+01:00');

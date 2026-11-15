@@ -151,3 +151,5 @@
 14/11/2026 21:45 — v1.10 — Terre Rouge : le premier créneau indique jusqu’à quelle heure la pluie est prévue avant un retour durable au sec dans l’après-midi, si la résolution et l’échéance le permettent.
 
 14/11/2026 22:22 — v1.11 — Terre Rouge : sur les vignettes larges, le bloc vent complet peut rejoindre les températures et le cumul sur la même ligne.
+
+15/11/2026 08:50 — v1.12 — Terre Rouge : les vignettes résument les épisodes d’une même nuit sous un seul pictogramme « Nuit ».
