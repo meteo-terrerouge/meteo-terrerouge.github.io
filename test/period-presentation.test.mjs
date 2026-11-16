@@ -169,6 +169,40 @@ test('chaque pictogramme utilise l’intensité de son propre créneau, y compri
   assert.match(html, /class="period">Matin<[\s\S]*?calque-pluie-1\.svg[\s\S]*?class="period">Reste de la journée<[\s\S]*?calque-pluie-2\.svg/);
 });
 
+test('les créneaux voisins au même pictogramme sont réunis sauf si leur avertissement diffère', () => {
+  const midnight = Date.parse('2026-11-18T00:00:00+01:00');
+  const render = ({ dryEvening = false, gustAlert = false } = {}) => {
+    const hours = alertHours(24).map((hour, index) => {
+      const rain = index === 0 || (dryEvening && index > 18) ? 0
+        : index === 1 ? 2.2 : index <= 10 ? .2 : index === 11 ? 2.1 : .77;
+      return { ...hour, time: new Date(midnight + index * HOUR).toISOString(),
+        rain, liquidRain: rain, windGust: gustAlert ? (index < 11 ? 59 : 61) : 20 };
+    });
+    const input = { dashboard: { arome: { hours } }, week: {}, now: midnight - 36 * HOUR, timezone: 'Europe/Paris',
+      notableGust: 55, sunTimesForDate: () => ({ sunrise: new Date(midnight + 8 * HOUR), sunset: new Date(midnight + 17 * HOUR) }) };
+    const day = dailyRowsTools.buildDailyRows(input).find(day => day.start === midnight);
+    return compactCard(day, input);
+  };
+
+  const single = render();
+  assert.match(single, /data-pictograms="1"/);
+  assert.equal([...single.matchAll(/calque-pluie-2\.svg/g)].length, 1);
+  assert.doesNotMatch(single, /class="period"/);
+  assert.match(single, /class="rain-amount">16,11</);
+
+  const withDryEvening = render({ dryEvening: true });
+  assert.match(withDryEvening, /data-pictograms="2"/);
+  assert.deepEqual(Array.from(withDryEvening.matchAll(/class="period">([^<]+)/g), match => match[1]), ['Avant 18 h', 'Soir']);
+  assert.equal([...withDryEvening.matchAll(/calque-pluie-2\.svg/g)].length, 1);
+  assert.match(withDryEvening, /Soir[\s\S]*temps sec/);
+
+  const withAlert = render({ gustAlert: true });
+  assert.match(withAlert, /data-pictograms="2"/);
+  assert.equal([...withAlert.matchAll(/calque-pluie-2\.svg/g)].length, 2);
+  assert.equal([...withAlert.matchAll(/data-period-alert="yellow"/g)].length, 1);
+  assert.match(withAlert, /data-period-alert="yellow"[^>]*><span class="period">Dès 10 h/);
+});
+
 test('un ciel plus couvert après 18 h ne crée pas un créneau si le temps reste sec', () => {
   const midnight = Date.parse('2026-11-21T00:00:00+01:00');
   const hours = alertHours(24).map((hour, index) => ({ ...hour,

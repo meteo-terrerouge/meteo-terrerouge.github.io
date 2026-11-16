@@ -1401,6 +1401,7 @@ body.forecast-rows-layout { min-width: 0; }
 .bulletin-header { padding: 22px 28px 18px; }
 .bulletin-header > div:first-child { flex: 1; min-width: 0; }
 .bulletin-header .header-meta { flex: none; margin-inline-start: 12px; }
+.bulletin-about-link { margin-bottom: 4px; color: #21617e; font-size: .85rem; font-weight: 700; text-underline-offset: .15em; }
 .bulletin-header h1 { color: #193d50; font-size: clamp(25.5px, 4.08vw, 40.8px); line-height: 1.2; }
 .site-title-separator { padding: 0; color: #91a5b0; font-weight: 500; }
 .site-location { margin: 8px 0 0; color: #617885; font-size: 12px; line-height: 1.5; font-variant-numeric: tabular-nums; }

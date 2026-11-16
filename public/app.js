@@ -273,7 +273,7 @@ function refreshSourceIndicators() {
     const state = sourceSyncState(key);
     link.dataset.sync = state;
     const label = link.textContent.trim();
-    link.title = "Voir " + label + " dans About · " + sourceSyncTitle(key);
+    link.title = "Voir " + label + " dans À propos · " + sourceSyncTitle(key);
     link.setAttribute("aria-label", label + " — " + link.title);
   });
 }
@@ -281,7 +281,7 @@ function refreshSourceIndicators() {
 function sourceLink(key, section, label) {
   const state = sourceSyncState(key);
   const href = (window.METEO_REPLAY?.aboutBase ?? (window.METEO_REPLAY ? "../" : "")) + "about.html#" + section;
-  return '<a class="source-link" data-source-status="' + key + '" data-sync="' + state + '" href="' + href + '" title="Voir ' + escapeText(label) + ' dans About · ' + escapeText(sourceSyncTitle(key)) + '">' + label + '</a>';
+  return '<a class="source-link" data-source-status="' + key + '" data-sync="' + state + '" href="' + href + '" title="Voir ' + escapeText(label) + ' dans À propos · ' + escapeText(sourceSyncTitle(key)) + '">' + label + '</a>';
 }
 
 const meteoFranceLinks = () => sourceLink("arome", "api-arome", "AROME")

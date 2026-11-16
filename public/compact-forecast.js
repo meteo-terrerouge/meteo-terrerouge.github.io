@@ -160,7 +160,7 @@ function conditionPrecipitation(period, rainPictogramLevelForIntervals) {
   return { rain, trace, snow, mixed, freezing };
 }
 
-function condition(period, { rainPictogramLevelForIntervals, mixedPrecipitationMarkup, notableGust }, arrows, label, night, tone) {
+function conditionPictogram(period, { rainPictogramLevelForIntervals, mixedPrecipitationMarkup, notableGust }, night) {
   const { rain, trace, snow, mixed, freezing } = conditionPrecipitation(period, rainPictogramLevelForIntervals);
   const cloud = period.cloudCover ?? (period.rain > 0 ? 100 : null);
   const snowLevel = period.snowfall > 15 + 1e-9 ? 3 : period.snowfall > 5 + 1e-9 ? 2 : 1;
@@ -173,12 +173,18 @@ function condition(period, { rainPictogramLevelForIntervals, mixedPrecipitationM
     : snow ? (mixed ? 'Pluie et neige' : 'Neige') : trace ? 'Traces de pluie prévues' : rain ? 'Pluie' : band < 0 ? 'Indisponible' : skyLabels[band];
   const wind = period.windGust >= notableGust ? image('pictogrammes/calque-vent.svg', 'wind-layer') : '';
   const dry = period.completeRain && period.phase === 'dry' && !period.storm;
-  const description = [night && label !== 'Nuit' ? 'Nuit' : '', weather, dry ? 'temps sec' : '', wind ? 'rafales' : ''].filter(Boolean).join(', ');
+  const description = [weather, dry ? 'temps sec' : '', wind ? 'rafales' : ''].filter(Boolean).join(', ');
   const precipitation = mixed ? mixedPrecipitationMarkup(rain, snowLevel)
     : layer ? image(layer, rain > 0 || trace ? 'rain-layer' : '') : '';
+  const layers = (freezing ? '' : sky) + precipitation + (period.storm ? image('pictogrammes/calque-orage.svg') : '') + wind;
+  return { description, layers };
+}
+
+function condition({ label, night, presentation: { description, layers, arrows, tone } }) {
+  const title = night && label !== 'Nuit' ? 'Nuit, ' + description : description;
   const alert = tone ? ` data-period-alert="${tone}" role="group" aria-label="${label ? label + '. ' : ''}${alertLabels[tone]}"` : '';
   return `<div class="condition"${alert}>${label ? `<span class="period">${label}</span>` : ''}
-    <span class="weather-summary"><span class="pictogram" role="img" aria-label="${description}" title="${description}">${freezing ? '' : sky}${precipitation}${period.storm ? image('pictogrammes/calque-orage.svg') : ''}${wind}</span>${arrows ? `<span class="weather-trends">${arrows}</span>` : ''}</span></div>`;
+    <span class="weather-summary"><span class="pictogram" role="img" aria-label="${title}" title="${title}">${layers}</span>${arrows ? `<span class="weather-trends">${arrows}</span>` : ''}</span></div>`;
 }
 
 function card(day, options) {
@@ -204,10 +210,6 @@ function card(day, options) {
   const conditionsDay = usesPiaf ? { ...day, rainIntervals: day.chartRainIntervals } : day;
   const conditionsTotal = conditionsDay === day ? totals : summarize(conditionsDay, day.start, day.end);
   const daytime = summarize(conditionsDay, at(6), at(18));
-  const selectedConditions = cardPeriods(day, {
-    total: conditionsTotal, daytime, at, leadDays, clock, notableGust: options.notableGust,
-    summarize: (start, end) => summarize(conditionsDay, start, end),
-  });
   const alertWindows = [0, 6, 12, 18].map(hour => ({ start: at(hour), end: at(hour + 6), date: day.date }));
   const alertsBetween = (windows, start, end) => windows.flatMap(window => {
     const from = Math.max(start, window.start, now);
@@ -216,18 +218,27 @@ function card(day, options) {
       .map(item => ({ ...item, wind: item.windSpeed, gust: item.windGust })) : [];
   });
   const alerts = alertsBetween(alertWindows, day.start, day.end);
-  const conditions = selectedConditions.map(({ period, label, night }) => {
-    const trends = weatherTrends(periods(period.start, period.end));
-    const nextNight = period.start >= day.end;
-    const name = nextNight ? `Nuit (${shortDate.format(period.start)})` : label;
-    const nextDate = nextNight ? localDateKey(day.end, timezone) : '';
-    const windows = nextNight ? [
-      { start: day.end, end: day.nextNightEnd, date: nextDate },
-      { start: day.nextNightEnd, end: period.end, date: nextDate },
-    ] : alertWindows;
-    const localAlerts = period.start === day.start && period.end === day.end ? alerts
-      : alertsBetween(windows, period.start, period.end);
-    return condition(period, options, trends, name, night, forecastSlotAlertTone(localAlerts));
+  const selectedConditions = cardPeriods(day, {
+    total: conditionsTotal, daytime, at, leadDays, clock, notableGust: options.notableGust,
+    summarize: (start, end) => summarize(conditionsDay, start, end),
+    describe: (period, night) => {
+      const { start, end } = period;
+      const nextDate = start >= day.end ? localDateKey(day.end, timezone) : '';
+      const windows = nextDate ? [
+        { start: day.end, end: day.nextNightEnd, date: nextDate },
+        { start: day.nextNightEnd, end, date: nextDate },
+      ] : alertWindows;
+      const localAlerts = start === day.start && end === day.end ? alerts : alertsBetween(windows, start, end);
+      return {
+        ...conditionPictogram(period, options, night),
+        arrows: weatherTrends(periods(start, end)),
+        tone: forecastSlotAlertTone(localAlerts),
+      };
+    },
+  });
+  const conditions = selectedConditions.map(item => {
+    const label = item.start >= day.end ? `Nuit (${shortDate.format(item.start)})` : item.label;
+    return condition({ ...item, label });
   }).join('');
   const dailyTone = dailyRainAlertTone(alertSources, day, now);
   const { tone, causes, rainTone } = forecastSlotAlertTone(alerts, dailyTone, true);

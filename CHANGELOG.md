@@ -159,3 +159,7 @@
 15/11/2026 22:19 — v1.14 — Terre Rouge : la pluie et la neige d’un même créneau se superposent sur la frise 24 h, avec leurs échelles respectives. Le survol indique le mélange et détaille les deux quantités.
 
 15/11/2026 22:29 — v1.15 — Terre Rouge : la couleur d’avertissement couvre toute la surface de son créneau sur les vignettes et la frise 3 h. Les gouttes décoratives sont réservées aux barres de pluie seule.
+
+16/11/2026 11:09 — v1.16 — Terre Rouge : page « À propos » avec la carte des mailles, les données et la fréquence de collecte des API, le mode d’emploi du graphique 24 h, la lecture des pictogrammes, des tendances, des « + » de pluie et des niveaux de vigilance.
+
+16/11/2026 19:21 — v1.17 — Terre Rouge : les créneaux voisins d’une même journée partagent un pictogramme lorsque leur météo et leurs avertissements s’affichent de la même façon.

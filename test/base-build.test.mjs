@@ -22,9 +22,9 @@ test('la base se construit seule avec ses ressources locales, sans données ni m
   const journal = await readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
   assert.equal(config.releaseNumber, [...journal.matchAll(/— v(\d+\.\d+) —/g)].at(-1)[1]);
   const headerMeta = html.match(/<div class="header-meta">[\s\S]*?<\/header>/)[0];
-  assert.doesNotMatch(headerMeta, /News|About/);
+  assert.match(headerMeta, /href="about\.html">À propos<\/a>/);
+  assert.doesNotMatch(headerMeta, /News|admin|<button\b/);
   assert.ok(headerMeta.includes('<span class="app-version">v' + config.releaseNumber + '</span>'));
-  assert.doesNotMatch(headerMeta, /<a\b|<button\b|\b(?:href|tabindex)=/);
   assert.equal(config.dataMode, 'static');
   assert.equal(config.apiBase, './');
   for (const feature of ['nowcasting', 'radar', 'pam', 'lightning', 'temperatureNormals']) {
@@ -43,6 +43,11 @@ test('la base se construit seule avec ses ressources locales, sans données ni m
   for (const file of shell) await access(path.join(root, 'dist', file.split('?')[0]));
   for (const name of ['calque-pluie-1.svg', 'calque-vent.svg', 'calque-orage.svg']) {
     await access(path.join(root, 'dist/pictogrammes', name));
+  }
+  const about = await readFile(path.join(root, 'dist/about.html'), 'utf8');
+  assert.doesNotMatch(about, /__(?:SITE|ASSET|RELEASE)/);
+  for (const [, url] of about.matchAll(/(?:src|href)="([^"]+)"/g)) {
+    if (!url.startsWith('https:')) await access(path.join(root, 'dist', url.split('?')[0]));
   }
 });
 
@@ -79,6 +84,9 @@ test('une installation extérieure construit son bulletin sans recopier le moteu
   assert.ok(!html.includes('__SITE_'));
   assert.ok(!html.includes('Lieu à définir'));
   assert.ok(html.includes('48,8566° N'));
+  const about = await readFile(path.join(result.siteDirectory, 'about.html'), 'utf8');
+  assert.ok(about.includes('<title>À propos · Météo &amp; environs&gt;Exemple &lt;local&gt;</title>'));
+  assert.ok(about.includes('48,8566° N'));
   const data = JSON.parse(await readFile(path.join(result.siteDirectory, 'data/dashboard.json'), 'utf8')).data;
   assert.equal(data.arome.hours[0].temperature, 15);
   assert.equal(data.latitude, profile.latitude);
@@ -119,7 +127,7 @@ test('a private configuration can build the bulletin without including either cr
     })
   });
   build('--profile=' + profilePath);
-  for (const file of ['runtime-config.js','index.html','manifest.webmanifest','data/dashboard.json','data/week.json']) {
+  for (const file of ['runtime-config.js','index.html','about.html','manifest.webmanifest','data/dashboard.json','data/week.json']) {
     const text = await readFile(path.join(root,'dist',file),'utf8');
     assert.equal(text.includes('github-private-build-fixture'),false);
     assert.equal(text.includes('meteo-private-build-fixture'),false);
