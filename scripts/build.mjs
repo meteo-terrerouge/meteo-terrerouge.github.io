@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import { readSiteProfile, normalizeSiteProfile } from '../sites/profiles.mjs';
 import { parsePrivateConfig } from './private-config.mjs';
 import { publicWeatherFiles } from '../weather/state.mjs';
-import { renderTechnicalMarkdown } from './render-technical-markdown.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const target = path.join(root, 'dist');
@@ -30,22 +29,11 @@ const location = configured ? coordinate(profile.latitude, 'N', 'S') + ' · ' + 
 const apiOrigin = profile.apiBaseUrl ? new URL(profile.apiBaseUrl).origin : '';
 if (/[\s;'"<>]/.test(apiOrigin)) throw new Error('Origine API invalide pour la politique de connexion.');
 const connectSources = "'self'" + (apiOrigin ? ' ' + apiOrigin : '');
-const technicalMarkdown = await readFile(path.join(root, 'docs/about.md'), 'utf8');
-const chapters = renderTechnicalMarkdown(technicalMarkdown);
-const endOfFirstChapter = chapters.indexOf('</section>');
-if (endOfFirstChapter < 0) throw new Error('Le chapitre des API manque dans la page À propos.');
-const boundary = endOfFirstChapter + '</section>'.length;
-const apiChapter = chapters.slice(0, boundary).replace('<h2>Détails techniques des API</h2>', '');
-const technicalDetails = '<details class="technical-details-disclosure" id="sources">'
-  + '<summary><span>Détails techniques des API</span><span class="technical-details-toggle" aria-hidden="true">›</span></summary>'
-  + '<div class="technical-details">' + apiChapter + '</div></details>'
-  + '<div class="technical-details technical-details-following">' + chapters.slice(boundary) + '</div>';
 await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
 await cp(path.join(root, 'public'), target, { recursive: true });
-for (const file of ['index.html', 'about.html', 'service-worker.js']) {
+for (const file of ['index.html', 'service-worker.js']) {
   const content = (await readFile(path.join(target, file), 'utf8'))
-    .replace('<!-- DETAILS_TECHNIQUES_API -->', () => technicalDetails)
     .replaceAll('__RELEASE__', version).replaceAll('__ASSET_VERSION__', version)
     .replaceAll('__CONNECT_SOURCES__', () => escape(connectSources))
     .replaceAll('__SITE_TITLE__', () => escape(pageTitle)).replaceAll('__SITE_HEADING__', () => heading).replaceAll('__SITE_LOCATION__', () => location);

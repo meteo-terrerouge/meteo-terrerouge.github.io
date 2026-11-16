@@ -163,3 +163,5 @@
 16/11/2026 11:09 — v1.16 — Terre Rouge : page « À propos » avec la carte des mailles, les données et la fréquence de collecte des API, le mode d’emploi du graphique 24 h, la lecture des pictogrammes, des tendances, des « + » de pluie et des niveaux de vigilance.
 
 16/11/2026 19:21 — v1.17 — Terre Rouge : les créneaux voisins d’une même journée partagent un pictogramme lorsque leur météo et leurs avertissements s’affichent de la même façon.
+
+16/11/2026 19:47 — v1.18 — Terre Rouge : retrait de la page « À propos » et de ses liens.

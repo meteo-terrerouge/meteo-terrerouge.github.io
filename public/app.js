@@ -268,37 +268,33 @@ function sourceSyncTitle(key) {
 }
 
 function refreshSourceIndicators() {
-  document.querySelectorAll("[data-source-status]").forEach(link => {
-    const key = link.dataset.sourceStatus;
-    const state = sourceSyncState(key);
-    link.dataset.sync = state;
-    const label = link.textContent.trim();
-    link.title = "Voir " + label + " dans À propos · " + sourceSyncTitle(key);
-    link.setAttribute("aria-label", label + " — " + link.title);
+  document.querySelectorAll("[data-source-status]").forEach(indicator => {
+    const key = indicator.dataset.sourceStatus;
+    indicator.dataset.sync = sourceSyncState(key);
+    indicator.title = sourceSyncTitle(key);
   });
 }
 
-function sourceLink(key, section, label) {
+function sourceIndicator(key, label) {
   const state = sourceSyncState(key);
-  const href = (window.METEO_REPLAY?.aboutBase ?? (window.METEO_REPLAY ? "../" : "")) + "about.html#" + section;
-  return '<a class="source-link" data-source-status="' + key + '" data-sync="' + state + '" href="' + href + '" title="Voir ' + escapeText(label) + ' dans À propos · ' + escapeText(sourceSyncTitle(key)) + '">' + label + '</a>';
+  return '<span class="source-link" data-source-status="' + key + '" data-sync="' + state + '" title="' + escapeText(sourceSyncTitle(key)) + '">' + escapeText(label) + '</span>';
 }
 
-const meteoFranceLinks = () => sourceLink("arome", "api-arome", "AROME")
-  + sourceLink("piaf", "api-piaf", "PIAF")
-  + sourceLink("pearome", "api-pe-arome", "AROME-PI");
-const openMeteoLink = () => sourceLink("openMeteo", "api-open-meteo", "Open-Meteo");
-const radarLink = () => !siteFeatures.nowcasting ? "" : sourceLink("radar", "api-radar", window.METEO_REPLAY ? "Radar archivé" : "Radar v1");
-const lightningLink = () => !siteFeatures.nowcasting ? "" : sourceLink("lightning", "api-eumetsat-li", "EUMETSAT LI");
-const vigilanceLink = () => sourceLink("vigilance", "api-vigilance", "Vigilance");
+const meteoFranceLinks = () => sourceIndicator("arome", "AROME")
+  + sourceIndicator("piaf", "PIAF")
+  + sourceIndicator("pearome", "AROME-PI");
+const openMeteoLink = () => sourceIndicator("openMeteo", "Open-Meteo");
+const radarLink = () => !siteFeatures.nowcasting ? "" : sourceIndicator("radar", window.METEO_REPLAY ? "Radar archivé" : "Radar v1");
+const lightningLink = () => !siteFeatures.nowcasting ? "" : sourceIndicator("lightning", "EUMETSAT LI");
+const vigilanceLink = () => sourceIndicator("vigilance", "Vigilance");
 const nowcastDisplayLink = () => !siteFeatures.nowcasting ? "" : '<a class="source-link source-link-nowcast" href="#nowcast-details" data-open-nowcast-link="true" title="Ouvrir l’affichage nowcasting">Nowcasting</a>';
 const shortRainLinks = () => window.METEO_REPLAY
   ? (window.METEO_REPLAY.archiveTesting ? radarLink() : openMeteoLink()) + nowcastDisplayLink()
-  : sourceLink("piaf", "api-piaf", "Météo-France") + nowcastDisplayLink();
+  : sourceIndicator("piaf", "Météo-France") + nowcastDisplayLink();
 const threeHourLinks = () => window.METEO_REPLAY ? radarLink() + nowcastDisplayLink() : radarLink()
   + nowcastDisplayLink()
-  + sourceLink("piaf", "api-piaf", "PIAF")
-  + sourceLink("arome", "api-arome", "AROME")
+  + sourceIndicator("piaf", "PIAF")
+  + sourceIndicator("arome", "AROME")
   + lightningLink()
   + vigilanceLink();
 
@@ -321,9 +317,9 @@ function renderForecastApiLinks() {
 function renderWeekApiLinks() {
   const container = $("week-api-links");
   if (!container) return;
-  container.innerHTML = sourceLink("arome", "api-arpege", "ARPEGE")
-    + sourceLink("ensemble", "api-pe-arpege", "PE-ARPEGE")
-    + sourceLink("openMeteo", "api-open-meteo", "Open-Meteo");
+  container.innerHTML = sourceIndicator("arome", "ARPEGE")
+    + sourceIndicator("ensemble", "PE-ARPEGE")
+    + sourceIndicator("openMeteo", "Open-Meteo");
   container.hidden = true;
   refreshSourceIndicators();
 }

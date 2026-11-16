@@ -141,7 +141,7 @@ button:hover { background: #eef7fb; }
 .source-link[data-sync="ready"]::before { background: #3f9b58; box-shadow: 0 0 0 2px rgba(63, 155, 88, .13); }
 .source-link[data-sync="loading"]::before { background: #e89a21; box-shadow: 0 0 0 2px rgba(232, 154, 33, .14); animation: source-sync-pulse 1.2s ease-in-out infinite; }
 @keyframes source-sync-pulse { 50% { opacity: .42; transform: scale(.78); } }
-.source-link:hover { background: #eef7fb; }
+a.source-link:hover { background: #eef7fb; }
 .forecast-source-selector { display: flex; gap: 6px; }
 .forecast-source-button { min-height: 31px; padding: 5px 10px; border: 1px solid #c7d4dc; border-radius: 7px; color: #29445c; background: #fff; font: 800 12px system-ui; }
 .forecast-source-button.active { border-color: #397a9e; color: #fff; background: #397a9e; }
@@ -1401,7 +1401,6 @@ body.forecast-rows-layout { min-width: 0; }
 .bulletin-header { padding: 22px 28px 18px; }
 .bulletin-header > div:first-child { flex: 1; min-width: 0; }
 .bulletin-header .header-meta { flex: none; margin-inline-start: 12px; }
-.bulletin-about-link { margin-bottom: 4px; color: #21617e; font-size: .85rem; font-weight: 700; text-underline-offset: .15em; }
 .bulletin-header h1 { color: #193d50; font-size: clamp(25.5px, 4.08vw, 40.8px); line-height: 1.2; }
 .site-title-separator { padding: 0; color: #91a5b0; font-weight: 500; }
 .site-location { margin: 8px 0 0; color: #617885; font-size: 12px; line-height: 1.5; font-variant-numeric: tabular-nums; }
