@@ -466,6 +466,28 @@ test('les horaires deviennent des moments de la journée à longue échéance, e
   assert.match(brief, /class="rain-amount">0,2</);
 });
 
+test('deux créneaux de matinée ou de soirée ont des libellés distincts à longue échéance', () => {
+  const midnight = Date.parse('2026-11-24T00:00:00+01:00');
+  const render = evening => {
+    const hours = alertHours(24).map((hour, index) => {
+      const rain = evening ? (index > 18 ? .3 : 0) : (index > 10 && index <= 12 ? .3 : 0);
+      return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain,
+        cloudCover: index <= 10 ? 40 : 100, stormSignal: evening && index > 20, weatherCode: rain ? 61 : 3 };
+    });
+    const input = { dashboard: { openMeteo: { hours } }, week: {}, now: midnight - 7 * 24 * HOUR, timezone: 'Europe/Paris',
+      sunTimesForDate: () => ({ sunrise: new Date(midnight + 8 * HOUR), sunset: new Date(midnight + 17 * HOUR) }) };
+    const day = dailyRowsTools.buildDailyRows(input).find(day => day.start === midnight);
+    return compactCard(day, input);
+  };
+
+  const morning = render(false);
+  const labels = html => Array.from(html.matchAll(/class="period">([^<]+)/g), match => match[1]);
+  assert.deepEqual(labels(morning), ['Début de matinée', 'Fin de matinée', 'Reste de la journée']);
+  assert.match(morning, /Début de matinée[\s\S]*?temps sec[\s\S]*?Fin de matinée[\s\S]*?calque-pluie-1\.svg/);
+  assert.match(morning, /class="rain-amount">0,6</);
+  assert.deepEqual(labels(render(true)).slice(-2), ['Début de soirée', 'Fin de soirée']);
+});
+
 test('le cumul quotidien de neige fraîche apparaît en cm à côté de la pluie liquide', () => {
   const midnight = Date.parse('2026-11-23T00:00:00+01:00');
   for (const [snowfall, expected] of [[0, ''], [.04, '&lt; 1'], [1, '6']]) {

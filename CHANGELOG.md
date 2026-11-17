@@ -165,3 +165,5 @@
 16/11/2026 19:21 — v1.17 — Terre Rouge : les créneaux voisins d’une même journée partagent un pictogramme lorsque leur météo et leurs avertissements s’affichent de la même façon.
 
 16/11/2026 19:47 — v1.18 — Terre Rouge : retrait de la page « À propos » et de ses liens.
+
+17/11/2026 15:27 — v1.19 — Terre Rouge : lorsque deux créneaux affichent des conditions différentes le même matin ou le même soir, leurs libellés distinguent le début et la fin de la période.

@@ -182,7 +182,7 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
       conditions.push({ start, end, rain, phase, night, presentation, key });
     }
   }
-  return conditions.map(({ start: from, end: to, rain, phase, night, presentation }, index) => {
+  const labeledConditions = conditions.map(({ start: from, end: to, rain, phase, night, presentation }, index) => {
     let label = '';
     if (conditions.length === 1) return { start: from, label, night, presentation };
     if (from >= day.end || to <= nightEnd) label = 'Nuit';
@@ -209,4 +209,16 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
     else label = 'En journée';
     return { start: from, label, night, presentation };
   });
+
+  // A weather transition may split a broad part of the day when hours are too uncertain to display.
+  for (const [label, early, late] of [
+    ['Matin', 'Début de matinée', 'Fin de matinée'],
+    ['Soir', 'Début de soirée', 'Fin de soirée'],
+  ]) {
+    const matching = labeledConditions.filter(condition => condition.label === label);
+    if (matching.length !== 2) continue;
+    matching[0].label = early;
+    matching[1].label = late;
+  }
+  return labeledConditions;
 }
