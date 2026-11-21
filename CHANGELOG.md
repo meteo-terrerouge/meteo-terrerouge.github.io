@@ -167,3 +167,5 @@
 16/11/2026 19:47 — v1.18 — Terre Rouge : retrait de la page « À propos » et de ses liens.
 
 17/11/2026 15:27 — v1.19 — Terre Rouge : lorsque deux créneaux affichent des conditions différentes le même matin ou le même soir, leurs libellés distinguent le début et la fin de la période.
+
+21/11/2026 18:39 — v1.20 — Terre Rouge : chaque vignette reste dans sa journée de minuit à minuit ; les prévisions et avertissements de la nuit suivante figurent uniquement dans la vignette du lendemain.

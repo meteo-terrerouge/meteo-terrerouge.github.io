@@ -188,7 +188,7 @@ function condition({ label, night, presentation: { description, layers, arrows, 
 }
 
 function card(day, options) {
-  const { now, today, tomorrow, dates, shortDate, localHour, clock, timezone, localDateKey, alertSources, history, forecastSlotAlertTone,
+  const { now, today, tomorrow, dates, localHour, clock, alertSources, history, forecastSlotAlertTone,
     dailyPeriodAlertSummaries, dailyPeriodSummary, dailyRainAlertTone, dailyRainBars } = options;
   const { weekday, day: number, month } = Object.fromEntries(dates.formatToParts(day.start).map(part => [part.type, part.value]));
   const dayLabel = day.date === today ? 'Aujourd’hui' : day.date === tomorrow ? 'Demain' : weekday;
@@ -223,12 +223,7 @@ function card(day, options) {
     summarize: (start, end) => summarize(conditionsDay, start, end),
     describe: (period, night) => {
       const { start, end } = period;
-      const nextDate = start >= day.end ? localDateKey(day.end, timezone) : '';
-      const windows = nextDate ? [
-        { start: day.end, end: day.nextNightEnd, date: nextDate },
-        { start: day.nextNightEnd, end, date: nextDate },
-      ] : alertWindows;
-      const localAlerts = start === day.start && end === day.end ? alerts : alertsBetween(windows, start, end);
+      const localAlerts = start === day.start && end === day.end ? alerts : alertsBetween(alertWindows, start, end);
       return {
         ...conditionPictogram(period, options, night),
         arrows: weatherTrends(periods(start, end)),
@@ -236,10 +231,7 @@ function card(day, options) {
       };
     },
   });
-  const conditions = selectedConditions.map(item => {
-    const label = item.start >= day.end ? `Nuit (${shortDate.format(item.start)})` : item.label;
-    return condition({ ...item, label });
-  }).join('');
+  const conditions = selectedConditions.map(condition).join('');
   const dailyTone = dailyRainAlertTone(alertSources, day, now);
   const { tone, causes, rainTone } = forecastSlotAlertTone(alerts, dailyTone, true);
   const meanWind = totals.windSpeed ?? causes.wind;
@@ -315,9 +307,8 @@ export function compactCardsMarkup(days, options) {
   const today = localDateKey(now, timezone);
   const tomorrow = new Date(Date.parse(today + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
   const dates = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: timezone });
-  const shortDate = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', timeZone: timezone });
   const localHour = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', hourCycle: 'h23', timeZone: timezone });
   const clock = new Intl.DateTimeFormat('fr-FR', { hour: 'numeric', minute: '2-digit', timeZone: timezone });
   const history = forecastHistory(days, options);
-  return '<ul class="week">' + days.map(day => card(day, { ...options, today, tomorrow, dates, shortDate, localHour, clock, history })).join('') + '</ul>';
+  return '<ul class="week">' + days.map(day => card(day, { ...options, today, tomorrow, dates, localHour, clock, history })).join('') + '</ul>';
 }

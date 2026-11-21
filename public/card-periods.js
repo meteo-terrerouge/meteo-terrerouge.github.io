@@ -142,22 +142,6 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
     periods[0] = { ...periods[0], cloudCover: daytime.cloudCover ?? periods[0].cloudCover };
   }
 
-  // At short range, a new overnight episode can prompt people to prepare
-  // before bedtime. The next civil date keeps its own totals and frise.
-  if (leadDays <= 2 && !day.trend && day.nextNightEnd && periods.length < maxPeriods) {
-    const fullNight = summarize(day.end, day.nextNightEnd + (nightEnd - at(6)));
-    const overnight = fullNight.completeRain ? fullNight : summarize(day.end, day.nextNightEnd);
-    const eveningWeather = summarize(evening, day.end);
-    const newStorm = overnight.storm === true && eveningWeather.storm === false;
-    const hazardousPhases = period => new Set(period.intervals.map(item => item.phase)
-      .filter(phase => snowPhases.includes(phase) || phase === 'freezing')
-      .map(phase => phase === 'freezing' ? phase : 'snow'));
-    const eveningHazards = hazardousPhases(eveningWeather);
-    const newPhase = [...hazardousPhases(overnight)].some(phase => !eveningHazards.has(phase));
-    const newRain = overnight.rain > .1 && eveningWeather.phase === 'dry';
-    if (overnight.completeRain && eveningWeather.completeRain && (newStorm || newPhase || newRain)) periods.push(overnight);
-  }
-
   const stepsAt = time => total.intervals.filter(interval => interval.start <= time && interval.end >= time);
   const precise = time => {
     const steps = stepsAt(time);
@@ -185,7 +169,7 @@ export function cardPeriods(day, { total, daytime, summarize, at, leadDays, cloc
   const labeledConditions = conditions.map(({ start: from, end: to, rain, phase, night, presentation }, index) => {
     let label = '';
     if (conditions.length === 1) return { start: from, label, night, presentation };
-    if (from >= day.end || to <= nightEnd) label = 'Nuit';
+    if (to <= nightEnd) label = 'Nuit';
     else if (from >= evening && to === day.end && (!precise(from) || from === evening)) label = 'Soir';
     else if (to === at(12)) label = 'Matin';
     else if (from === at(12) && to === day.end) label = 'Reste de la journée';

@@ -251,25 +251,51 @@ test('la pluie mêlée de neige qui se poursuit en soirée partage un seul picto
   assert.match(render(18), /class="period">Soir<[\s\S]*?temps sec/);
 });
 
-test('le pictogramme après minuit indique le jour de la neige, distinct du cumul de la veille', () => {
-  const date = '2026-11-27';
-  const midnight = Date.parse(date + 'T00:00:00+01:00');
-  const dayEnd = midnight + 24 * HOUR;
-  const hours = alertHours(30).map((hour, index) => {
-    const snow = index > 25;
-    return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain: snow ? .2 : 0,
-      liquidRain: snow ? .1 : 0, snowfall: snow ? .07 : 0, weatherCode: snow ? 85 : 3 };
-  });
-  const dashboard = { openMeteo: { hours } }, week = {};
-  const input = { dashboard, week, now: midnight - HOUR, timezone: 'Europe/Paris' };
-  const day = dailyRowsTools.buildDailyRows(input).find(day => day.date === date);
-  const html = compactCard(day, input);
-  assert.match(html, /class="period">Nuit \(28 nov\.\)<[\s\S]*calque-neige-1\.svg/);
-  assert.doesNotMatch(html, /class="rain-total"|class="dry-slash"/);
-  assert.doesNotMatch(html, /class="rain-reading snow-total"/);
-  const outlook = compactCard({ ...day, trend: true }, input);
-  assert.match(outlook, /data-pictograms="1"[\s\S]*temps sec/);
-  assert.doesNotMatch(outlook, /Nuit \(|calque-neige-/);
+test('la neige après minuit appartient uniquement à la vignette du lendemain, même au changement d’heure', () => {
+  for (const [start, end] of [
+    ['2026-11-27T00:00:00+01:00', '2026-11-28T00:00:00+01:00'],
+    ['2026-03-29T00:00:00+01:00', '2026-03-30T00:00:00+02:00'],
+    ['2026-10-25T00:00:00+02:00', '2026-10-26T00:00:00+01:00'],
+  ]) {
+    const midnight = Date.parse(start), dayEnd = Date.parse(end);
+    const hours = alertHours(54).map((hour, index) => {
+      const stamp = midnight + index * HOUR;
+      const snow = stamp > dayEnd && stamp <= dayEnd + 6 * HOUR;
+      return { ...hour, time: new Date(stamp).toISOString(), rain: snow ? .2 : 0,
+        liquidRain: snow ? .1 : 0, snowfall: snow ? .07 : 0, weatherCode: snow ? 85 : 3 };
+    });
+    for (const lead of [0, 1, 2, 8]) {
+      const input = { dashboard: { openMeteo: { hours } }, week: {}, now: midnight - lead * 24 * HOUR, timezone: 'Europe/Paris' };
+      const days = dailyRowsTools.buildDailyRows(input);
+      const day = days.find(day => day.start === midnight);
+      const html = compactCard(day, input);
+      assert.match(html, /data-pictograms="1"[\s\S]*temps sec/);
+      assert.doesNotMatch(html, /Nuit \(|calque-neige-|class="rain-total"|class="rain-reading snow-total"/);
+      const tomorrow = compactCard(days.find(day => day.start === dayEnd), input);
+      assert.match(tomorrow, /calque-neige-1\.svg/);
+      assert.match(tomorrow, /class="rain-reading snow-total"/);
+    }
+  }
+});
+
+test('Aujourd’hui conserve sa nuit et le reste de sa journée sans ajouter la pluie orageuse de demain', () => {
+  const midnight = Date.parse('2026-11-21T00:00:00+01:00');
+  const render = nextNight => {
+    const hours = alertHours(48).map((hour, index) => {
+      const tomorrow = nextNight && index > 24 && index <= 32;
+      const rain = index > 0 && index <= 4 ? .1 : tomorrow ? 5 : 0;
+      return { ...hour, time: new Date(midnight + index * HOUR).toISOString(), rain, liquidRain: rain,
+        cloudCover: rain ? 80 : 20, windGust: tomorrow ? 75 : 20, stormSignal: tomorrow, weatherCode: tomorrow ? 95 : rain ? 61 : 2 };
+    });
+    const input = { dashboard: { arome: { hours } }, week: {}, now: midnight + 12 * HOUR, timezone: 'Europe/Paris',
+      sunTimesForDate: () => ({ sunrise: new Date(midnight + 8 * HOUR), sunset: new Date(midnight + 17 * HOUR) }) };
+    return compactCard(dailyRowsTools.buildDailyRows(input).find(day => day.start === midnight), input);
+  };
+  const html = render(true);
+  assert.equal(html, render(false));
+  assert.deepEqual([...html.matchAll(/class="period">([^<]+)/g)].map(match => match[1]), ['Nuit', 'Reste de la journée']);
+  assert.match(html, /class="rain-amount">0,4</);
+  assert.doesNotMatch(html, /Nuit \(|calque-orage|calque-vent|data-period-alert=/);
 });
 
 test('la vignette distingue une accalmie autour de midi des épisodes avant et après', () => {
