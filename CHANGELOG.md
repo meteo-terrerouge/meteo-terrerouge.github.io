@@ -171,3 +171,5 @@
 21/11/2026 18:39 — v1.20 — Terre Rouge : chaque vignette reste dans sa journée de minuit à minuit ; les prévisions et avertissements de la nuit suivante figurent uniquement dans la vignette du lendemain.
 
 25/11/2026 20:10 — v1.28 — Dans les vignettes, les rafales se placent au centre du nuage, l’éclair sur son bord supérieur droit et la voiture sous les gouttes de pluie verglaçante avec un espacement régulier.
+
+25/11/2026 20:48 — v1.29 — Les frises 3 h et 24 h utilisent une échelle neige d’au moins 0 à 5 cm/h et affinent les congères pour représenter les faibles chutes à leur juste hauteur.

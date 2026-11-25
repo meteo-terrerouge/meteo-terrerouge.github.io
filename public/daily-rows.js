@@ -1,6 +1,7 @@
 import { prepareBasicForecast } from './forecast-core.js';
 import { precipitation24h, precipitation24hScales, precipitation24hHeight, precipitation24hGradient,
-  precipitation24hLegend, precipitation24hBarMarkup, minimumRainBarHeight, rainBarDropsMarkup, rainIntensityGradient } from './precipitation-24h.js';
+  precipitation24hLegend, precipitation24hBarMarkup, minimumRainBarHeight, rainBarDropsMarkup, rainIntensityGradient,
+  snowScaleMaximum, snowCapScale } from './precipitation-24h.js';
 
 const HOUR = 3600000;
 const CHART_INSET = 30;
@@ -44,8 +45,9 @@ export function windSummaryMarkup(wind, gust, causes) {
 // Shared snowdrift outline: separate horizontal plateaus, never a bridge over
 // a dry interval or a vertical cap between two different intensities.
 function snowCapMarkup(plateaus) {
-  const contour = plateaus.map(plateau => {
-    const { left: start, right: stop, level, stamp } = plateau;
+  const contours = new Map();
+  for (const { left: start, right: stop, top, stamp, scale = 1 } of plateaus) {
+    const level = top - 4.25 * scale;
     const count = Math.max(3, Math.floor((stop - start) / 24));
     const seed = Math.floor(stamp / 300000);
     const lengths = Array.from({ length: count }, (_, index) => [.8, 1.2, .65, 1.4, 1][(index + seed) % 5]);
@@ -53,14 +55,21 @@ function snowCapMarkup(plateaus) {
     let cursor = start, previousY = level, path = 'M' + start + ',' + level;
     for (let index = 0; index < count; index++) {
       const nextX = index === count - 1 ? stop : cursor + (stop - start) * lengths[index] / totalLength;
-      const nextY = index === count - 1 ? level : level - [1.1, 2.4, .7, 1.8, .3, 2.8][(index + seed) % 6];
+      const nextY = index === count - 1 ? level : level - scale * [1.1, 2.4, .7, 1.8, .3, 2.8][(index + seed) % 6];
       const middle = (cursor + nextX) / 2;
       path += ' C' + middle + ',' + previousY + ' ' + middle + ',' + nextY + ' ' + nextX + ',' + nextY;
       cursor = nextX; previousY = nextY;
     }
-    return path;
-  }).join(' ');
-  return contour ? `<g class="piaf-snow-caps" aria-hidden="true"><path class="piaf-snow-cap-outline" d="${contour}"/><path class="piaf-snow-cap" d="${contour}"/></g>` : '';
+    const paths = contours.get(scale) || [];
+    paths.push(path);
+    contours.set(scale, paths);
+  }
+  const markup = [...contours].map(([scale, paths]) => {
+    const contour = paths.join(' ');
+    const width = thickness => scale === 1 ? '' : ` style="stroke-width:${thickness * scale}"`;
+    return `<path class="piaf-snow-cap-outline" d="${contour}"${width(8.6)}/><path class="piaf-snow-cap" d="${contour}"${width(7)}/>`;
+  }).join('');
+  return markup ? `<g class="piaf-snow-caps" aria-hidden="true">${markup}</g>` : '';
 }
 
 export function precipitationPhase(sample) {
@@ -803,8 +812,8 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
         if (previous?.end === group.start && Math.abs(previous.rate - snowRate) < 1e-9) {
           previous.right = barRight;
           previous.end = group.end;
-        } else dailySnowPlateaus.push({ left: barLeft, right: barRight, level: height - snowHeight - 4.25,
-          stamp: group.start, end: group.end, rate: snowRate });
+        } else dailySnowPlateaus.push({ left: barLeft, right: barRight, top: height - snowHeight,
+          stamp: group.start, end: group.end, rate: snowRate, scale: snowCapScale(snowHeight) });
       }
       const labelX = Math.max(23, Math.min(width - 23, center));
       const showTrace = trace && !group.edge && (!previousRainLabel || labelX - 22 > previousRainLabel.right + 3);
@@ -835,7 +844,7 @@ export function dailyChartMarkup(day, { now = Date.now(), state = createDailyCha
       if (previous && previous.end === group.start && Math.abs(previous.rate - rate) < 1e-9
         && !previous.mixed && !(group.liquidRain > 0)) {
         previous.right = barRight; previous.end = group.end;
-      } else dailySnowPlateaus.push({ left: snowLeft, right: barRight, level: height - bar - 4.25,
+      } else dailySnowPlateaus.push({ left: snowLeft, right: barRight, top: height - bar,
         stamp: group.start, end: group.end, rate, mixed: group.liquidRain > 0 });
     }
     const rainBar = !snow || group.liquidRain > 0 ? `<rect x="${barLeft}" y="${height - bar}" width="${barRight - barLeft}" height="${bar}" class="day-combined-rain${group.edge ? ' day-adjacent-rain' : ''}"/>` : '';
@@ -1249,9 +1258,7 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
     return piafHoverText(hoverWindow(start, stop), hoverWindow(start - duration, start), hoverWindow(stop, stop + duration));
   };
   const format = new Intl.DateTimeFormat('fr-FR', { timeZone: timezone, hour: '2-digit', minute: '2-digit' });
-  const snowPeak = Math.max(1, ...snowIntervals.map(interval => interval.rain * HOUR / (interval.end - interval.start)));
-  const snowMagnitude = 10 ** Math.floor(Math.log10(snowPeak));
-  const maxSnowRate = [1, 2, 5, 10].find(step => step >= snowPeak / snowMagnitude) * snowMagnitude;
+  const maxSnowRate = snowScaleMaximum(snowIntervals.map(interval => interval.rain * HOUR / (interval.end - interval.start)));
   const snowY = rate => bottom - rate / maxSnowRate * (bottom - top - 5);
   const weatherAt = time => {
     const sample = { time: new Date(time).toISOString(), stamp: time, sources: {}, temperature: null, cloudCover: null, stormSignal: false };
@@ -1364,7 +1371,7 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
       const barWidth = Math.max(.1, span - 2 * gap), barHeight = bottom - snowY(rate);
       rectangles.push(`<rect class="piaf-snow-bar" x="${x(start) + gap}" y="${snowY(rate)}" width="${barWidth}" height="${barHeight}"/>`);
       // Continue beneath the cap's highest undulation; the cap masks the ends.
-      const edgeTop = snowY(rate) - 7.1;
+      const edgeTop = snowY(rate) - 7.1 * snowCapScale(barHeight);
       rectangles.push(`<path class="piaf-snow-bar-edge" d="M${x(start) + gap},${edgeTop} V${bottom} H${x(start) + gap + barWidth} V${edgeTop}" aria-hidden="true"/>`);
       // Stable per time step: irregular positions never flicker on redraw.
       let seed = Math.floor(start / 300000) >>> 0;
@@ -1381,8 +1388,9 @@ export function piafChartMarkup(forecast, { now = Date.now(), width = 600, compa
   }).join('') : '';
   const snowCaps = snowCapMarkup(snowPlateaus.map(plateau => {
     const gap = Math.min(.8, (x(plateau.end) - x(plateau.start)) / 6);
+    const top = snowY(plateau.rate);
     return { left: x(plateau.start) + gap, right: x(plateau.end) - gap,
-      level: snowY(plateau.rate) - 4.25, stamp: plateau.start };
+      top, stamp: plateau.start, scale: snowCapScale(bottom - top) };
   }));
   const bars = compact ? displaySamples.filter(sample => sample.amount > 0 && !sample.trace && !sample.insignificant
     && !(sample.phase === 'snow' && snowIntervals.filter(interval => interval.rain > 0).reduce((covered, interval) => covered

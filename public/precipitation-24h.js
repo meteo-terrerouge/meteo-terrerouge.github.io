@@ -20,14 +20,20 @@ export function precipitation24h(group) {
 
 export function precipitation24hScales(bars) {
   const rainBars = bars.filter(bar => bar.rain >= .01 - 1e-9);
-  const snowPeak = Math.max(1, ...bars.map(bar => bar.snowRate));
-  const magnitude = 10 ** Math.floor(Math.log10(snowPeak));
   return {
     rain: rainBars.length ? Math.max(10, ...rainBars.filter(bar => bar.rain >= .1 - 1e-9).map(bar => bar.rainRate)) : 0,
-    snow: bars.some(bar => bar.snow > 0) ? [1, 2, 5, 10].find(step => step * magnitude >= snowPeak) * magnitude : 0,
+    snow: bars.some(bar => bar.snow > 0) ? snowScaleMaximum(bars.map(bar => bar.snowRate)) : 0,
     equivalent: rainBars.some(bar => bar.equivalent),
   };
 }
+
+export function snowScaleMaximum(rates) {
+  const peak = Math.max(5, ...rates);
+  const magnitude = 10 ** Math.floor(Math.log10(peak));
+  return [1, 2, 5, 10].map(step => step * magnitude).find(step => step >= peak);
+}
+
+export const snowCapScale = height => Math.min(1, height / 12);
 
 export function precipitation24hHeight(rate, maximum, baseline) {
   return maximum > 0 ? plotHeight(baseline) * rate / maximum : 0;
@@ -68,7 +74,8 @@ export function precipitation24hBarMarkup({ left, right, baseline, rainHeight, s
   const rainBar = rainHeight > 0 ? `<rect x="${left}" y="${rainTop}" width="${width}" height="${rainHeight}" class="day-combined-rain${trace ? ' day-combined-rain-trace' : ''}${edge ? ' day-adjacent-rain' : ''}" style="fill:url(#${gradient});opacity:1"/>` : '';
   const snowTop = baseline - snowHeight;
   const snowBar = snowHeight > 0 ? `<rect class="piaf-snow-bar" x="${left}" y="${snowTop}" width="${width}" height="${snowHeight}"/>` : '';
-  const snowEdge = snowHeight > 0 ? `<path class="piaf-snow-bar-edge" d="M${left},${snowTop - 7.1} V${baseline} H${right} V${snowTop - 7.1}" aria-hidden="true"/>` : '';
+  const edgeTop = snowTop - 7.1 * snowCapScale(snowHeight);
+  const snowEdge = snowHeight > 0 ? `<path class="piaf-snow-bar-edge" d="M${left},${edgeTop} V${baseline} H${right} V${edgeTop}" aria-hidden="true"/>` : '';
   // Both measurements cover the same interval and use their own scale from the baseline.
   return snowBar + rainBar + snowEdge + rainDrops;
 }

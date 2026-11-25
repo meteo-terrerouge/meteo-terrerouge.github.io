@@ -1468,7 +1468,7 @@ test('frise 3 h : neige en cm/h sur son échelle propre sans conversion des quan
 
 
 test('frise 3 h : fortes chutes de neige sans plafond de l’échelle ni perte de quantité', () => {
-  for (const [snowfall, scaleMaximum] of [[1.25, 2], [8, 10], [30, 50]]) {
+  for (const [snowfall, scaleMaximum] of [[8, 10], [30, 50]]) {
     const dashboard={arome:{hours:[hour(now+HOUR,{rain:3,liquidRain:0,snowfall,weatherCode:73})]}};
     const html=piafChartMarkup({rainSteps:[{intervalStart:now,intervalEnd:now+HOUR,precipitation:3}]},{now,compact:true,dashboard});
     assert.ok(html.includes('data-snow-rate="'+snowfall+'" data-snow-amount="'+snowfall+'"'));

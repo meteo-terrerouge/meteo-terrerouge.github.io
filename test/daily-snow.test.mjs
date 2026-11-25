@@ -67,3 +67,30 @@ test('24 h compactes : la pluie et la neige couvrent le même créneau et les go
     assert.match(html, /Pluie mm\/h[\s\S]*Neige cm\/h/);
   }
 });
+
+test('frises 3 h et 24 h : la neige faible occupe une petite fraction de l’échelle', () => {
+  const now = Date.parse('2026-11-26T00:00:00+01:00');
+  const end = now + 3600000;
+  const forecast = { rainSteps: [{ intervalStart: now, intervalEnd: end, precipitation: .8 }] };
+  for (const [snowfall, maximum] of [[.1, 5], [.5, 5], [1.25, 5], [8, 10]]) {
+    const hours = [{ time: new Date(end).toISOString(), rain: .8, liquidRain: 0, snowfall, weatherCode: 73 }];
+    const dashboard = { arome: { hours } };
+    const [day] = buildDailyRows({ now, dashboard });
+    for (const width of [360, 1200]) {
+      const daily = dailyChartMarkup(day, { now, width, compactRain: true });
+      const short = piafChartMarkup(forecast, { now, width, dashboard, compact: true, compactRain: true, precipitationOnly: true });
+      assert.ok(daily.includes(`Neige, échelle de 0 à ${maximum} cm/h`));
+      assert.ok(short.includes(`0 à ${maximum} cm/h`));
+      const baseline = Number(daily.match(/class="day-combined-svg"[^>]*viewBox="0 0 \S+ (\d+)"/)[1]);
+      const shortRange = Number(short.match(/class="piaf-snow-scale-bar"[^>]*height="([^"]+)"/)[1]);
+      for (const [html, range] of [[daily, baseline / 2], [short, shortRange]]) {
+        const height = Number(html.match(/class="piaf-snow-bar"[^>]*height="([^"]+)"/)[1]);
+        assert.ok(Math.abs(height / range - snowfall / maximum) < 1e-9);
+        if (snowfall <= .5 && height < 12) {
+          const outline = Number(html.match(/class="piaf-snow-cap-outline"[^>]*style="stroke-width:([^"]+)"/)[1]);
+          assert.ok(outline > 0 && outline < height, 'la congère reste fine sur les petites barres');
+        }
+      }
+    }
+  }
+});
