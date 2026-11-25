@@ -33,12 +33,9 @@
   .compact-forecast .card-transition .pictogram { width: calc(56px * var(--pictogram-scale)); height: calc(52px * var(--pictogram-scale)); }
   .compact-forecast [data-pictograms="3"] .pictogram { width: min(24cqw, calc(56px * var(--pictogram-scale))); }
   .compact-forecast [data-pictograms="3"] .period { font-size: clamp(.49rem, 5cqw, .63rem); }
-  .compact-forecast .pictogram img { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .compact-forecast .pictogram .day-mixed-layer { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .compact-forecast .pictogram .rain-layer { transform: translateY(9%); }
+  .compact-forecast .pictogram > .weather-pictogram { display: block; width: 100%; height: 100%; }
   .compact-forecast-layout .day-rain-trace-layer { position: absolute; inset: 0; width: 100%; height: 100%; transform: translateY(9%); }
   .compact-forecast-layout .day-rain-trace-point:focus-visible > rect { stroke: #648fab; }
-  .compact-forecast .pictogram .wind-layer { transform: translateY(12%); }
   .forecast-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 4px; min-height: 43px; font-size: .7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.12; }
   .compact-forecast .card-metrics { --metric-divider: #e1eaee; --metrics-inset: 8px; position: relative; margin: 0 var(--metrics-inset); padding: 7px 0 8px; border-top: 1px solid transparent; }
   .compact-forecast .card-metrics::before { content: ''; position: absolute; inset: -1px calc(-1 * var(--metrics-inset)) auto; border-top: 1px solid var(--metric-divider); }

@@ -105,6 +105,21 @@ const compactCard = (day, input) => {
     alertSources: dailyRowsTools.buildDailySourceRows(input), forecastSlotAlertTone, rainPictogramStep });
 };
 
+test('le pictogramme de pluie verglaçante sépare ses calques et conserve les signaux météo', () => {
+  const midnight = Date.parse('2026-11-21T00:00:00+01:00');
+  const hours = alertHours(24, 1, { weatherCode: 66, windGust: 60, stormSignal: true })
+    .map((hour, index) => ({ ...hour, time: new Date(midnight + index * HOUR).toISOString() }));
+  const input = { dashboard: { arome: { hours } }, week: {}, now: midnight, timezone: 'Europe/Paris' };
+  const day = dailyRowsTools.buildDailyRows(input).find(day => day.start === midnight);
+  const html = compactCard(day, input);
+  assert.match(html, /aria-label="[^"]*Orage possible, Pluie verglaçante, rafales"/);
+  const pictogram = html.match(/<svg class="weather-pictogram" viewBox="0 0 128 136"[^>]*>(.*?)<\/svg>/)[1];
+  assert.deepEqual([...pictogram.matchAll(/href="pictogrammes\/([^"]+\.svg)"/g)].map(match => match[1]), [
+    'calque-nuage-verglas.svg', 'calque-gouttes-verglas.svg', 'calque-route-glissante.svg',
+    'calque-orage.svg', 'calque-vent.svg'
+  ]);
+});
+
 test('les flèches des vignettes utilisent les cycles publiés même sans historique local', async () => {
   const midnight = Date.parse('2026-10-24T00:00:00+02:00');
   const profile = { id: 'test', latitude: 44, longitude: 5, timezone: 'Europe/Paris', features: { arome: true } };

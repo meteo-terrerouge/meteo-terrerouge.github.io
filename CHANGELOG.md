@@ -169,3 +169,5 @@
 17/11/2026 15:27 — v1.19 — Terre Rouge : lorsque deux créneaux affichent des conditions différentes le même matin ou le même soir, leurs libellés distinguent le début et la fin de la période.
 
 21/11/2026 18:39 — v1.20 — Terre Rouge : chaque vignette reste dans sa journée de minuit à minuit ; les prévisions et avertissements de la nuit suivante figurent uniquement dans la vignette du lendemain.
+
+25/11/2026 20:10 — v1.28 — Dans les vignettes, les rafales se placent au centre du nuage, l’éclair sur son bord supérieur droit et la voiture sous les gouttes de pluie verglaçante avec un espacement régulier.

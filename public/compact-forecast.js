@@ -1,4 +1,5 @@
 import { cardPeriods } from './card-periods.js';
+import { forecastPictogramMarkup } from './forecast-pictogram.js';
 
 const temperature = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 const rainfall = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
@@ -11,10 +12,6 @@ const skyBand = cloud => [5, 25, 50, 75, 90, Infinity].findIndex(limit => cloud 
 const snowPhases = ['snow', 'snow-unknown', 'mixed'];
 const formatTemp = value => value == null ? '—' : temperature.format(value).replace('-', '−') + '°';
 const alertLabels = { yellow: 'Alerte du bulletin jaune', orange: 'Alerte du bulletin orange', red: 'Alerte du bulletin rouge' };
-
-function image(path, className = '') {
-  return '<img alt=""' + (className ? ' class="' + className + '"' : '') + ' src="' + path + '">';
-}
 
 function trendArrow(direction, metric, description) {
   return `<span class="trend-arrow trend-${metric} trend-${direction}" role="img" aria-label="${description}" title="${description}"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 10V2M2.5 5.5 6 2l3.5 3.5"/></svg></span>`;
@@ -160,23 +157,20 @@ function conditionPrecipitation(period, rainPictogramLevelForIntervals) {
   return { rain, trace, snow, mixed, freezing };
 }
 
-function conditionPictogram(period, { rainPictogramLevelForIntervals, mixedPrecipitationMarkup, notableGust }, night) {
+function conditionPictogram(period, { rainPictogramLevelForIntervals, notableGust }, night) {
   const { rain, trace, snow, mixed, freezing } = conditionPrecipitation(period, rainPictogramLevelForIntervals);
   const cloud = period.cloudCover ?? (period.rain > 0 ? 100 : null);
   const snowLevel = period.snowfall > 15 + 1e-9 ? 3 : period.snowfall > 5 + 1e-9 ? 2 : 1;
   const band = cloud == null ? -1 : Math.max(rain ? 1 : 0, skyBand(cloud));
-  const sky = band < 0 ? '' : image('vendor/weather-variants/cloud-' + (night ? 'night' : 'day') + '-' + band + '.svg');
-  const layer = freezing ? 'pictogrammes/pluie-verglacante.svg'
-    : snow ? 'pictogrammes/calque-neige-' + snowLevel + '.svg'
-    : trace ? 'pictogrammes/calque-traces-pluie.svg' : rain ? 'pictogrammes/calque-pluie-' + rain + '.svg' : '';
-  const weather = period.storm ? 'Orage possible' : freezing ? 'Pluie verglaçante'
-    : snow ? (mixed ? 'Pluie et neige' : 'Neige') : trace ? 'Traces de pluie prévues' : rain ? 'Pluie' : band < 0 ? 'Indisponible' : skyLabels[band];
-  const wind = period.windGust >= notableGust ? image('pictogrammes/calque-vent.svg', 'wind-layer') : '';
+  const weather = freezing ? 'Pluie verglaçante' : snow ? (mixed ? 'Pluie et neige' : 'Neige')
+    : trace ? 'Traces de pluie prévues' : rain ? 'Pluie' : band < 0 ? 'Indisponible' : skyLabels[band];
+  const gusts = period.windGust >= notableGust;
   const dry = period.completeRain && period.phase === 'dry' && !period.storm;
-  const description = [weather, dry ? 'temps sec' : '', wind ? 'rafales' : ''].filter(Boolean).join(', ');
-  const precipitation = mixed ? mixedPrecipitationMarkup(rain, snowLevel)
-    : layer ? image(layer, rain > 0 || trace ? 'rain-layer' : '') : '';
-  const layers = (freezing ? '' : sky) + precipitation + (period.storm ? image('pictogrammes/calque-orage.svg') : '') + wind;
+  const description = [period.storm ? 'Orage possible' : '',
+    !period.storm || freezing ? weather : '', dry ? 'temps sec' : '', gusts ? 'rafales' : ''].filter(Boolean).join(', ');
+  const layers = forecastPictogramMarkup({
+    band, night, freezing, trace, rain, snowLevel: snow ? snowLevel : 0, mixed, storm: period.storm, gusts
+  });
   return { description, layers };
 }
 
