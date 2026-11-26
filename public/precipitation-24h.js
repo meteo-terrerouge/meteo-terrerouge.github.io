@@ -1,6 +1,7 @@
 const HOUR = 3600000;
 const plotHeight = baseline => baseline / 2;
 export const minimumRainBarHeight = 6;
+export const snowCapEdgeOffset = 7.1;
 const rainColorMaximum = 7;
 const rainColorMidpoint = 2.25;
 const rainStops = [[0, 'low'], [100 * rainColorMidpoint / rainColorMaximum, 'medium'], [100, 'high']];
@@ -32,8 +33,6 @@ export function snowScaleMaximum(rates) {
   const magnitude = 10 ** Math.floor(Math.log10(peak));
   return [1, 2, 5, 10].map(step => step * magnitude).find(step => step >= peak);
 }
-
-export const snowCapScale = height => Math.min(1, height / 12);
 
 export function precipitation24hHeight(rate, maximum, baseline) {
   return maximum > 0 ? plotHeight(baseline) * rate / maximum : 0;
@@ -74,7 +73,7 @@ export function precipitation24hBarMarkup({ left, right, baseline, rainHeight, s
   const rainBar = rainHeight > 0 ? `<rect x="${left}" y="${rainTop}" width="${width}" height="${rainHeight}" class="day-combined-rain${trace ? ' day-combined-rain-trace' : ''}${edge ? ' day-adjacent-rain' : ''}" style="fill:url(#${gradient});opacity:1"/>` : '';
   const snowTop = baseline - snowHeight;
   const snowBar = snowHeight > 0 ? `<rect class="piaf-snow-bar" x="${left}" y="${snowTop}" width="${width}" height="${snowHeight}"/>` : '';
-  const edgeTop = snowTop - 7.1 * snowCapScale(snowHeight);
+  const edgeTop = snowTop - snowCapEdgeOffset;
   const snowEdge = snowHeight > 0 ? `<path class="piaf-snow-bar-edge" d="M${left},${edgeTop} V${baseline} H${right} V${edgeTop}" aria-hidden="true"/>` : '';
   // Both measurements cover the same interval and use their own scale from the baseline.
   return snowBar + rainBar + snowEdge + rainDrops;

@@ -68,7 +68,7 @@ test('24 h compactes : la pluie et la neige couvrent le même créneau et les go
   }
 });
 
-test('frises 3 h et 24 h : la neige faible occupe une petite fraction de l’échelle', () => {
+test('frises 3 h et 24 h : les congères gardent leur taille au-dessus des barres graduées', () => {
   const now = Date.parse('2026-11-26T00:00:00+01:00');
   const end = now + 3600000;
   const forecast = { rainSteps: [{ intervalStart: now, intervalEnd: end, precipitation: .8 }] };
@@ -84,11 +84,16 @@ test('frises 3 h et 24 h : la neige faible occupe une petite fraction de l’éc
       const baseline = Number(daily.match(/class="day-combined-svg"[^>]*viewBox="0 0 \S+ (\d+)"/)[1]);
       const shortRange = Number(short.match(/class="piaf-snow-scale-bar"[^>]*height="([^"]+)"/)[1]);
       for (const [html, range] of [[daily, baseline / 2], [short, shortRange]]) {
-        const height = Number(html.match(/class="piaf-snow-bar"[^>]*height="([^"]+)"/)[1]);
-        assert.ok(Math.abs(height / range - snowfall / maximum) < 1e-9);
-        if (snowfall <= .5 && height < 12) {
-          const outline = Number(html.match(/class="piaf-snow-cap-outline"[^>]*style="stroke-width:([^"]+)"/)[1]);
-          assert.ok(outline > 0 && outline < height, 'la congère reste fine sur les petites barres');
+        const [, top, height] = html.match(/class="piaf-snow-bar"[^>]*y="([^"]+)"[^>]*height="([^"]+)"/);
+        assert.ok(Math.abs(Number(height) / range - snowfall / maximum) < 1e-9);
+        assert.doesNotMatch(html, /class="piaf-snow-cap(?:-outline)?"[^>]*style="stroke-width:/);
+        const cap = html.match(/class="piaf-snow-cap" d="([^"]+)"/)[1];
+        const [, capTop] = cap.match(/^M[^,]+,([^ ]+)/);
+        assert.ok(Math.abs(Number(top) - Number(capTop) - 4.25) < 1e-9);
+        if (snowfall === .1) {
+          const waveTops = [...cap.matchAll(/ C[^ ]+,([^ ]+) [^ ]+,([^ ]+) [^ ]+,([^ ]+)/g)]
+            .flatMap(([, ...points]) => points.map(Number));
+          assert.ok(Number(capTop) - Math.min(...waveTops) > 2, 'le relief reste visible pour la neige faible');
         }
       }
     }
